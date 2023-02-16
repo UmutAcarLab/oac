@@ -1,8 +1,25 @@
 
-structure SMatrix = SUM
+signature MELD_OPT =
+sig
+  structure Circuit : CIRCUIT
+  structure BlackBoxOpt : BLACK_BOX_OPT
+  val optimize : BlackBoxOpt.t -> Circuit.circuit -> Circuit.circuit
+end
 
-functor MeldOpt (structure OptC : BLACK_BOX_OPT) =
+functor MeldOptFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
 struct
+  exception Unimplemented
+  structure BlackBoxOpt = BlackBoxOpt
+  structure Circuit = BlackBoxOpt.Circuit
+
+  val optimize = (fn _ => raise  Unimplemented)
+end
+
+(* functor MeldOptFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
+struct
+
+
+
   type circuit = int Seq.t
   datatype circtree =
     PAR of node
@@ -41,6 +58,133 @@ struct
     | CONCAT {left, right, size} => Seq.append (flatten left, flatten right)
     | LEAF (c, _) => c
     | PLEAF (c, _) => c
+
+
+  (* fun lease gs c del k front =
+    let
+      val clen = Circuit.size c
+      fun layeri i = if front then Circuit.layer c i else Circuit.layer c (clen - i - 1)
+
+      (* inactive_bits is a non-functional set that is modified in place *)
+      val inactive_bits = QSet.init n
+
+      (* peel off one layer *)
+      fun peel_layer sl =
+        let
+          val layer = layeri sl
+          val inactive =  QSet.contains inactive_bits
+
+          (* sbits is also a non-functional set that is modified in place *)
+          val sbits = QSet.init n
+          val new_layer = Circuit.init_layer n
+          (* loop invariant: sbits \intersect inactive_bits = \empty *)
+          fun loop qi =
+            if qi = n then ()
+            else if inactive qi then loop (qi + 1)
+            else if (QSet.contains sbits qi) then loop (qi + 1)
+            else
+              let
+                val (g, qbits) = Circuit.gate layer qi
+                val id_gate = (GateSet.id_idx gs, qbits)
+              in
+                if (QSet.intersect_count qbits inactive_bits = 0) then
+                  (QSet.foreach qbits (fn i => Circuit.add_to_layer new_layer i g);
+                  (QSet.absorb sbits qbits; loop (qi + 1)))
+                else
+                  (QSet.foreach qbits (fn i => Circuit.add_to_layer new_layer i id_gate);
+                  QSet.absorb inactive_bits qbits)
+              end
+        in
+        end
+    in
+      body
+    end *)
+
+  fun meldc c1 c2 =
+    let
+      val n = Circuit.support c1
+
+      (* returns a sequence of n qubits *)
+      fun lease c k front max_depth =
+        let
+          val clen = Circuit.size c
+          fun layeri i = if front then Circuit.layer c i else Circuit.layer c (clen - i - 1)
+          val sets = Seq.tabulate (fn i => QSet.init n) (max_depth * n)
+          fun m i q = Seq.nth sets (i * n + q)
+
+          fun label_layer i max =
+            if i = max then ()
+            else
+              let
+                val layer = layeri i
+                fun determine j =
+                  if j = n then ()
+                  else
+                  let
+                    val (g, qbits) = Circuit.gate layer j
+                    val qf = QSet.init n
+                    val _ = QSet.iterate qbits (fn q => QSet.absorb qf (m (i - 1) q))
+                  in
+                    (ArraySlice.update (sets, i * n + j, qf); determine (j + 1))
+                  end
+              in
+                (determine 0; label_layer (i+1) max)
+              end
+
+          (* non-functional set *)
+          (* val claimed_bits = QSet.init n *)
+          val _ = label_layer 0 max_depth
+
+          fun find_support qi =
+            let
+              fun loop i =
+                if i = max_depth then NONE
+                else if QSet.size (m i qi) = k then SOME i
+                else loop (i + 1) qs
+            in
+              loop 0
+            end
+
+          val shortest_k_circuit =
+            let
+              fun loop qi =
+                if qi = n then NONE
+                else case find_support qi of
+                  SOME idx => SOME (qi, idx)
+                | NONE => loop (qi + 1)
+            in
+              loop 0
+            end
+
+          val maximal_circuit =
+            case shortest_k_circuit of
+              NONE => NONE
+            | SOME (qi, idx) =>
+              let
+                val max_layers = Seq.tabulate (fn i => 0) n
+                val support = m idx qi
+                fun explore j q =
+                  let
+                    val g = Circuit.gate (layeri j) q
+                  in
+                    if Circuit.
+                  end
+              in
+
+              end
+        in
+
+        end
+
+      fun meldk c1 seam c2 k =
+        let
+          val c1_scar = lease c k
+        in
+          body
+        end
+    in
+      body
+    end
 
   fun meld_nodes gs bopt c =
     let
@@ -111,8 +255,8 @@ struct
                       val ma = GateSet.perm_to_mat gs (append3 (p1, s, p2))
                       val mb = GateSet.perm_to_mat gs (append3 (p1', s', p2'))
                     in
-                      if (SMatrix.equiv slop (ma, mb)) then () else
-                        (print "inverif\n"; print (Real.toString (SMatrix.proj_trace_dist (ma, mb)) ^ "\n") ; print (SMatrix.str ma); print (SMatrix.str mb); raise WrongOpt)
+                      if (ComplexMatrix.equiv slop (ma, mb)) then () else
+                        (print "inverif\n"; print (Real.toString (ComplexMatrix.proj_trace_dist (ma, mb)) ^ "\n") ; print (ComplexMatrix.str ma); print (ComplexMatrix.str mb); raise WrongOpt)
                     end
                   (* val _ = verify (p1, seam, p2) (p1', seam', p2') *)
                 in
@@ -127,7 +271,7 @@ struct
               val m = GateSet.perm_to_mat gs s
               val m' = GateSet.perm_to_mat gs s'
             in
-              if (SMatrix.equiv (2.0 * slop) (m, m')) then ()
+              if (ComplexMatrix.equiv (2.0 * slop) (m, m')) then ()
               else ((printSeq s); (printSeq s'); raise WrongOpt)
             end
           (* val _ = verify s s' *)
@@ -174,4 +318,4 @@ struct
       koptimize (OptC.max_breadth bopt) c
     end
 
-end
+end *)

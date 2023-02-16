@@ -1,7 +1,9 @@
 lib.mlb
-../sk-ml/trie-opt.mlb
-gate-set.mlb
+complex-matrix.mlb
+local
+  CIRCUIT.sml
+in
+  signature CIRCUIT
+end
 BLACK_BOX_OPT.sml
-CIRC_MELD_OPT.sml
-
 MeldOpt.sml
