@@ -1,9 +1,5 @@
 lib.mlb
 complex-matrix.mlb
-local
-  CIRCUIT.sml
-in
-  signature CIRCUIT
-end
+CIRCUIT.sml
 BLACK_BOX_OPT.sml
 MeldOpt.sml
