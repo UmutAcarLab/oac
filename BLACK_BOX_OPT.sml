@@ -1,15 +1,3 @@
-(* signature CIRCUIT =
-sig
-  type gate
-  type layer
-  type circuit
-  val labelToGate : string -> gate
-  val eval_raw_sequence : gate Seq.t -> ComplexMatrix.t
-  val from_raw_sequence : gate Seq.t -> circuit
-  val eval_mat : circuit -> ComplexMatrix.t
-  val depth : circuit -> int
-end *)
-
 
 signature BLACK_BOX_OPT =
 sig

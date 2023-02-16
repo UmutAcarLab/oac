@@ -3,7 +3,7 @@ struct
 
   exception InvalidFormat
 
-  fun writeToQASM f gs {perm, M} =
+  (* fun writeToQASM f gs {perm, M} =
     let
       fun writeFile (f: string) (s: string) : unit =
           let val os = TextIO.openOut f
@@ -16,7 +16,7 @@ struct
       val gate_s = Seq.reduce (fn (a, b) => a ^ b) "" (Seq.map write_gate perm)
     in
       writeFile f (header ^ gate_s)
-    end
+    end *)
 
   fun readQASM path =
     let
@@ -51,7 +51,7 @@ struct
           val gate = Parse.parseString (DelayedSeq.nth line_split 0)
           val numinputs = DelayedSeq.length line_split - 1
         in
-          (gate, Seq.tabulate (fn i => getqindex (DelayedSeq.nth line_split (1 + i))) numinputs)
+          (gate, List.tabulate (numinputs, (fn i => getqindex (DelayedSeq.nth line_split (1 + i)))))
         end
 
       val numLines = DelayedSeq.length lines

@@ -9,7 +9,7 @@ FFI_FILES=lapack-groupfactor.c
 
 MPL=/home/jatina/entangle-allow-mpl/mpl/build/bin/mpl
 
-MLTON=mlton
+MLTON=/home/swestric/installs/mlton/build/bin/mlton
 
 .PHONY: all clean realclean phony
 

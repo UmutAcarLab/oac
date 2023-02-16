@@ -9,10 +9,11 @@ end
 functor MeldOptFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
 struct
   exception Unimplemented
+
   structure BlackBoxOpt = BlackBoxOpt
   structure Circuit = BlackBoxOpt.Circuit
 
-  val optimize = (fn _ => raise  Unimplemented)
+  val optimize = (fn _ => raise Unimplemented)
 end
 
 (* functor MeldOptFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
