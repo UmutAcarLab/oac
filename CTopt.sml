@@ -1,21 +1,71 @@
 structure CLA = CommandLineArgs
 
-
-
-structure CliffordT =
+structure CliffordGateSet : GATE_SET =
 struct
-  open Math
-  val (cos45, sin45) = (sqrt(0.5), sqrt(0.5))
-  val x = pi/(8.0)
-  val H = ComplexMatrix.fromList [[( 0.0, cos45), (0.0, sin45)], [(0.0, cos45), (0.0, ~sin45)]]
-  val S = ComplexMatrix.fromList [[( cos45, ~sin45), (  0.0, 0.0)], [(  0.0, 0.0), ( cos45,  sin45)]]
-  val T = ComplexMatrix.fromList [[(cos(x), ~(sin(x))), (  0.0, 0.0)], [(  0.0, 0.0), (cos(x), sin(x))]]
-  val H_dag = SUM.dagger H
-  val S_dag = SUM.dagger S
-  val T_dag = SUM.dagger T
-  val gates = Seq.fromList [H, S, T, H_dag, S_dag, T_dag]
-
   exception InvalidGate
+  open Math
+
+  datatype gate =
+    H of int
+  | S of int
+  | T of int
+  | HD of int
+  | SD of int
+  | TD of int
+
+
+  fun labelToGate g =
+    case g of
+        ("h", [x]) => H (x)
+      | ("s", [x]) => S (x)
+      | ("t", [x]) => T (x)
+      | ("hdg", [x]) => HD (x)
+      | ("sdg", [x]) => SD (x)
+      | ("tdg", [x]) => TD (x)
+      | _ => raise InvalidGate
+
+  fun str g =
+    case g of
+      H(x) => "h (" ^ (Int.toString x) ^ ")"
+    | S(x) => "s (" ^ (Int.toString x) ^ ")"
+    | T(x) => "t (" ^ (Int.toString x) ^ ")"
+    | HD(x) => "hdg (" ^ (Int.toString x) ^ ")"
+    | SD(x) => "sdg (" ^ (Int.toString x) ^ ")"
+    | TD(x) => "tdg (" ^ (Int.toString x) ^ ")"
+
+  fun inverse g =
+    case g of
+      H(x) => HD(x)
+    | S(x) => SD(x)
+    | T(x) => TD(x)
+    | HD(x) => H(x)
+    | SD(x) => S(x)
+    | TD(x) => T(x)
+
+  val num_gates = 6
+
+  val gate_matrix =
+    let
+      val (cos45, sin45) = (sqrt(0.5), sqrt(0.5))
+      val x = pi/(8.0)
+      val hm = ComplexMatrix.fromList [[( 0.0, cos45), (0.0, sin45)], [(0.0, cos45), (0.0, ~sin45)]]
+      val sm = ComplexMatrix.fromList [[( cos45, ~sin45), (  0.0, 0.0)], [(  0.0, 0.0), ( cos45,  sin45)]]
+      val tm = ComplexMatrix.fromList [[(cos(x), ~(sin(x))), (  0.0, 0.0)], [(  0.0, 0.0), (cos(x), sin(x))]]
+      val hdm = ComplexMatrix.dagger hm
+      val sdm = ComplexMatrix.dagger sm
+      val tdm = ComplexMatrix.dagger tm
+    in
+      fn g =>
+        case g of
+          H _ => hm
+        | S _ => sm
+        | T _ => tm
+        | HD _ => hdm
+        | SD _ => sdm
+        | TD _ => tdm
+    end
+
+  (* exception InvalidGate
 
   fun labelToIdx g =
     case g of
@@ -25,16 +75,16 @@ struct
       | "hdg" => 3
       | "sdg" => 4
       | "tdg" => 5
-      | _ => raise InvalidGate
+      | _ => raise InvalidGate *)
 
-  fun strtoidx sss =
+  (* fun strtoidx sss =
     let
       fun hs s = Seq.map labelToIdx s
     in
       Seq.map (fn ss => Seq.map hs ss) sss
-    end
+    end *)
 
-  fun lteq (c, d) =
+  (* fun lteq (c, d) =
     if (Seq.length c > Seq.length d) then false
     else if (Seq.length d > Seq.length c) then true
     else
@@ -48,9 +98,9 @@ struct
         if tc > td then false
         else if td > tc then true
         else true
-      end
+      end *)
 
-  fun makeRepFirst sss =
+  (* fun makeRepFirst sss =
     let
       fun ltIndx ss i j = lteq (Seq.nth ss i, Seq.nth ss j)
       fun repIdx ss currMin idx =
@@ -68,17 +118,11 @@ struct
       val minIndices = Seq.map (fn ss => repIdx ss 0 0) sss
     in
       Seq.foreach sss (fn (i, ss) => swap ss 0 (Seq.nth minIndices i))
-    end
+    end *)
+(*
 
-  fun get_rep_seq ss =
-    Seq.map
-    (fn rep =>
-      let
-        val grep = Seq.map labelToIdx rep
-      in
-        (GateSet.perm_to_mat_gates gates grep, grep)
-      end
-    ) ss
+
+
 
   fun maxlen sss =
     let
@@ -126,14 +170,8 @@ struct
       val (sgc, circuit) = ParseQASM.readQASM f
     in
       Seq.map (fn (label, _) => labelToIdx label) circuit
-    end
+    end *)
 
-  (* val frep = CLA.parseString "filerep" "test_12_1_representative_set.json"
-  val (ssrep, tm) = Util.getTime (fn _ => ParseQuartz.parse_rep frep)
-  val _ = print ("parsed filerep in " ^ Time.fmt 4 tm ^ "s\n")
-  val _ = if (CLA.parseBool "dumpeq" false) then print (ParseQuartz.str_rep (ssrep)) else ()
-  val ml = DelayedSeq.reduce Int.max 0 (DelayedSeq.map (fn p => Seq.length p) (DelayedSeq.fromArraySeq ssrep))
-  val optbrute = {eq = get_rep_seq ssrep, max_len = ml, eqdagger = ref (Seq.empty())} *)
 (*
   fun analyze_dist_brute {eq = mpseq, max_len = _} =
     let
@@ -156,18 +194,63 @@ struct
     end *)
 
 
-  val cliffordt_gates : GateSet.t =
+  (* val cliffordt_gates : GateSet.t =
   {
     gates = gates,
     labels = Seq.fromList ["h", "s", "t", "hdg", "sdg", "tdg"] ,
     order = Seq.fromList [2, 4, 8, 2, 4, 8],
     inverses = Seq.fromList [3, 4, 5, 0, 1, 2],
     size = 6
-  }
+  } *)
+
+end
+
+
+structure CliffordOPT = CircuitOPT (structure GateSet = CliffordGateSet)
+
+
+
+(*
+functor CircuitOpt =
+struct
+
+  structure CliffordCircuit = Circuit (structure GateSet = CliffordGateSet)
+
+  open CliffordCircuit
+
+  fun get_rep_seq ss =
+    let
+      fun labelToGate g =
+        case g of
+            "h" => H (0)
+          | "s" => S (0)
+          | "t" => T (0)
+          | "hdg" => HD (0)
+          | "sdg" => SD (0)
+          | "tdg" => TD (0)
+          | _ => raise InvalidGate
+    in
+      Seq.map
+      (fn rep =>
+        let
+          val grep = Seq.map labelToGate rep
+        in
+          (eval_raw_sequence grep, grep)
+        end
+      )
+    end
+
+  val frep = CLA.parseString "filerep" "test_12_1_representative_set.json"
+  val (ssrep, tm) = Util.getTime (fn _ => ParseQuartz.parse_rep frep)
+  val _ = print ("parsed filerep in " ^ Time.fmt 4 tm ^ "s\n")
+  val _ = if (CLA.parseBool "dumpeq" false) then print (ParseQuartz.str_rep (ssrep)) else ()
+  val ml = DelayedSeq.reduce Int.max 0 (DelayedSeq.map (fn p => Seq.length p) (DelayedSeq.fromArraySeq ssrep))
+
+  val optbrute = {eq = get_rep_seq ssrep, max_len = ml, eqdagger = ref (Seq.empty())}
 
   fun idxtostr sss =
     let
-      fun hs s = Seq.map (GateSet.label cliffordt_gates) s
+      fun hs s = Seq.map str s
     in
       Seq.map (fn ss => Seq.map hs ss) sss
     end
@@ -209,4 +292,4 @@ val _ = if (CLA.parseBool "dumpeq" false) then print (ParseQuartz.str (CliffordT
 val f = CLA.parseString "bench" "test-single.qasm"
 val s = CliffordT.load_circuit f
 val s' = CliffordT.optimize s
-val _ = print ("length after optimization = " ^ (Int.toString (Seq.length s')) ^ "\n")
+val _ = print ("length after optimization = " ^ (Int.toString (Seq.length s')) ^ "\n") *)
