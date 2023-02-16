@@ -52,13 +52,3 @@ struct
   val optimize = MeldOpt.optimize bbopt
 
 end
-
-(* what do we normally need? *)
-(* - implement the gate set, get a struct called CircuitOPT.
-   - run and pass the flags to quartz files
- *)
-
-(* what we want additionally *)
-(* - implement gate set, implement a BlackBox optimizer, given circuit,
-      ask for a optimizer.
-  -  *)
