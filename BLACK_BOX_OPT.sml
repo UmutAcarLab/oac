@@ -6,5 +6,5 @@ sig
   val init : unit -> t
   val best_equivalent : t -> Circuit.circuit -> Circuit.circuit option
   val max_breadth : t -> int
-  val max_depth : t -> int -> int
+  val max_size : t -> int -> int
 end

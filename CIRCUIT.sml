@@ -1,3 +1,4 @@
+
 signature CIRCUIT =
 sig
   type gate
@@ -7,6 +8,17 @@ sig
   val eval_raw_sequence : gate Seq.t -> ComplexMatrix.t
   val from_raw_sequence : gate Seq.t -> circuit
   val eval_circuit : circuit -> ComplexMatrix.t
-  val depth : circuit -> int
+  val support : circuit -> QSet.t
+
+  val num_layers : circuit -> int
+  val layer : circuit -> int -> layer
+
+  val num_qubits : circuit -> int
+
+
+  val gate : circuit -> layer -> int -> gate
+  val is_id : gate -> bool
+  val id_gate : int -> gate
+  val gate_support : gate -> QSet.t
 end
 

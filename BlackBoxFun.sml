@@ -6,7 +6,7 @@ struct
   structure Circuit = Circuit
   structure CLA = CommandLineArgs
 
-  type collection = {circuits : (ComplexMatrix.t * Circuit.circuit) Seq.t, max_depth : int}
+  type collection = {circuits : (ComplexMatrix.t * Circuit.circuit) Seq.t, max_size : int}
   type t = collection Seq.t
 
   fun load f =
@@ -22,7 +22,7 @@ struct
       val ss = Seq.map form_tuple ssrep
       val ml = DelayedSeq.reduce Int.max 0 (DelayedSeq.map (fn p => Seq.length p) (DelayedSeq.fromArraySeq ssrep))
     in
-      {circuits = ss, max_depth = ml}
+      {circuits = ss, max_size = ml}
     end
 
   fun init () =
@@ -35,7 +35,7 @@ struct
             val flagName = "filerep" ^ (Int.toString idx)
             val c =
               if CLA.parseFlag flagName then load (CLA.parseString flagName "")
-              else {circuits = Seq.empty(), max_depth= 0}
+              else {circuits = Seq.empty(), max_size= 0}
           in
             loop (idx - 1) (c::acc)
           end
@@ -65,7 +65,7 @@ struct
 
    (* fun find_approx (gs : t) (m, p) slop =
       let
-        val {eq = mats, max_depth = mlen, ...} = #optbrute gs
+        val {eq = mats, max_size = mlen, ...} = #optbrute gs
         val slop' = slop/3.0
         fun within_slop m (m', _) = abs (ComplexMatrix.proj_trace_dist (m, m') - slop') < slop'
         fun find_best (m, p) =
@@ -90,6 +90,6 @@ struct
     end *)
 
   fun max_breadth opt = Seq.length opt
-  fun max_depth (opt: t) x = #max_depth (Seq.nth opt x)
+  fun max_size (opt: t) x = #max_size (Seq.nth opt x)
 
 end
