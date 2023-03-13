@@ -12,11 +12,202 @@ struct
 
   structure BlackBoxOpt = BlackBoxOpt
   structure Circuit = BlackBoxOpt.Circuit
+  structure T = TreeFun (structure Circuit = Circuit)
+  structure S = SupportClosedFun (structure Circuit = Circuit)
 
-  val optimize = (fn _ => raise Unimplemented)
+  (*  *)
+
+  (* gen_all_subckt qs *)
+  (* for each gate in frontier:
+    if support(gate) \subset qs then include g; add rught neightbors of g to the froniter
+  *)
+
+
+  open T
+  fun gen_all_subckt c qs (supp_size, max_size) =
+    let
+      val ms = case max_size of SOME (m) => m | NONE => (Option.valOf Int.maxInt)
+      val n = QSet.size qs
+      val _ = print ("arguments = " ^ (Int.toString ms) ^ "\n")
+      val (all, k) = case supp_size of SOME (k) => (false, k) | NONE => (true, n)
+      val _ = print ("k = " ^ (Int.toString k) ^ "\n")
+      val sc = S.parse c ms
+
+      fun create_circuit qs ms =
+        let
+          val (cqs, sz, ctxtfront) = S.gen_max_subckt sc qs
+        in
+          if sz = 0 then []
+          else [(cqs, ctxtfront)]
+        end
+
+      fun drop_some (qs : QSet.t) av =
+        let
+          val q = QSet.some av
+        in
+          (QSet.add (qs, q), QSet.subtract (av, q))
+        end
+
+      fun loop_all qs av =
+        if (QSet.size av) = 0 then []
+        else
+          let
+            val l0 = create_circuit qs ms
+            val (qs', av') = drop_some qs av
+            val (l1, l2) = (loop_all qs av', loop_all qs' av')
+          in
+            l0@l1@l2
+          end
+
+      (* wksize = |qs| + |av| *)
+      (* |av| always decreases *)
+      fun loopk qs av wksize =
+        if QSet.size qs = k then create_circuit qs ms
+        else if wksize < k then []
+        else
+          let
+            val (qs', av') = drop_some qs av
+            val (l1, l2) = (loopk qs av' (wksize - 1), loopk qs' av' wksize)
+          in
+            l1@l2
+          end
+    in
+      if all then loop_all (QSet.empty) qs
+      else loopk (QSet.empty) qs n
+    end
+
+
+  fun subckt (c : Circuit.circuit) q k max_size =
+    let
+      val _ = print ("arguments = " ^ (Int.toString k) ^ " " ^ (Int.toString max_size) ^ "\n")
+      val candidates = gen_all_subckt c (QSet.singleton q) (SOME 1, SOME 4)
+      val _ = print ("num subckts = " ^ (Int.toString (List.length candidates)) ^ "\n")
+      val _ = List.app (Circuit.cprint o S.to_norm_circuit o (#1)) candidates
+    in
+      case candidates of
+        nil => NONE
+      | (x, ctxt) :: lx => SOME (S.to_norm_circuit x, ctxt)
+    end
+
+
+    (* let
+      val n = Circuit.num_qubits n
+      val sc = S.parse c max_size
+      val dpseq = Seq.tabulate (fn i => NONE) (n * (Circuit.num_layers c))
+      fun dpread (l, q) = Seq.nth dpseq (l * n + q)
+      fun dpwrite (l, q, v) = ArraySlice.update(dpseq, (l * n + q), SOME v)
+      val gate = Circuit.gate c
+
+      fun loop (l, q) k =
+        case dpread (l, q) of
+          SOME _ => Seq.empty()
+        | NONE =>
+          let
+            val g = gate (l, q)
+            val scg = S.support sc (l, q)
+            val sz = QSet.size scg
+          in
+            if (sz <= k) then
+              let
+                val circuits = ForkJoin.alloc sz
+                val _ = QSet.foreach
+                  (fn q => let val res = loop (l + 1, q) k in ArraySlice.update (circuits, q, res) end) scg
+                fun combine_leaders circuits =
+                  let
+                    val q = Seq.length circuits
+                  in
+                    body
+                  end
+              in
+
+              end
+
+            else (dpwrite (l, q, true); Seq.empty ())
+          end
+    in
+      body
+    end *)
+
+  fun patch_left (c : Circuit.circuit) (c' : circtree) =
+    case c' of
+      LEAF x => LEAF c
+    | CONCAT {left, right, size} =>
+      let
+        val l' = patch_left c left
+        val s' = size - (tree_size left) + (tree_size l')
+      in
+        CONCAT {left = l', right = right, size = s'}
+      end
+    | PAR {left, right, size} =>
+      let
+        val l' = patch_left c left
+        val s' = size - (tree_size left) + (tree_size l')
+      in
+        PAR {left = l', right = right, size = s'}
+      end
+
+  fun optimize_base bbopt (c : Circuit.circuit) =
+    let
+      val n = Circuit.num_qubits c
+
+      fun loop_size q sz (change, c) =
+        if sz = n then (change, c)
+        else let
+          val d = (BlackBoxOpt.max_size bbopt sz)
+          val (sub', ctxtfrontier) =
+            case subckt c q sz d of
+              SOME (s, cf) => (BlackBoxOpt.best_equivalent bbopt s, cf)
+            | NONE => (NONE, fn x => x)
+        in
+          case sub' of
+            NONE => (print "nothing\n"; loop_size q (sz + 1) (change, c))
+          | SOME s => (Circuit.patch_circuit c ctxtfrontier s; loop_size q (sz + 1) (true, c))
+        end
+
+      fun loop_bit q (change, c) =
+        if q = n then (change, c)
+        else let
+          val (change', c') = loop_size q 0 (false, c)
+        in
+          loop_bit (q + 1) (change orelse change', c')
+        end
+
+      fun loop c =
+        let
+          val (change, c') = loop_bit 0 (false, c)
+        in
+          if change then loop c'
+          else c
+        end
+    in
+      loop c
+    end
+
+  fun meld c1 c2 = raise Unimplemented
+
+  (* fun optimize_tree bbopt c =
+    case c of
+      PAR n => PAR n
+    | CONCAT ({left, right, size}) =>
+        let
+          val (l', r')  = (optimize_tree left, optimize_tree right)
+        in
+          meld l' r'
+        end
+    | LEAF c => LEAF (optimize_base bbopt c) *)
+
+  fun optimize bbopt c = optimize_base bbopt c
+    (* let
+      val c' = parse c
+    in
+      optimize_tree bbopt c'
+    end *)
+
 end
 
-(* functor MeldOptFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
+(*
+
+ functor MeldOptFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
 struct
 
 
@@ -27,7 +218,7 @@ struct
   | CONCAT of node
   | LEAF of (circuit * int)
   | PLEAF of (circuit * int)
-  withtype node = {left : circtree, right : circtree, size : int}
+  withtype
 
   exception Unimplemented
   exception WrongOpt
@@ -106,11 +297,11 @@ struct
       val n = Circuit.support c1
 
       (* returns a sequence of n qubits *)
-      fun lease c k front max_depth =
+      fun lease c k front max_size =
         let
           val clen = Circuit.size c
           fun layeri i = if front then Circuit.layer c i else Circuit.layer c (clen - i - 1)
-          val sets = Seq.tabulate (fn i => QSet.init n) (max_depth * n)
+          val sets = Seq.tabulate (fn i => QSet.init n) (max_size * n)
           fun m i q = Seq.nth sets (i * n + q)
 
           fun label_layer i max =
@@ -134,12 +325,12 @@ struct
 
           (* non-functional set *)
           (* val claimed_bits = QSet.init n *)
-          val _ = label_layer 0 max_depth
+          val _ = label_layer 0 max_size
 
           fun find_support qi =
             let
               fun loop i =
-                if i = max_depth then NONE
+                if i = max_size then NONE
                 else if QSet.size (m i qi) = k then SOME i
                 else loop (i + 1) qs
             in
@@ -199,7 +390,7 @@ struct
       val slop = 1E~15
       fun meldc (c1: int Seq.t) (c2: int Seq.t) =
         let
-          val sz = 2 * (OptC.max_depth bopt 1)
+          val sz = 2 * (OptC.max_size bopt 1)
           fun append3 (a, b, c) =
             let
               val (sa, sb, sc) = (Seq.length a, Seq.length b, Seq.length c)
@@ -309,8 +500,8 @@ struct
         if (k = 0) then c
         else
           let
-            val _ = print ("partition size = " ^ (Int.toString (OptC.max_depth bopt k)) ^ "\n")
-            val sc = partition (OptC.max_depth bopt k) c
+            val _ = print ("partition size = " ^ (Int.toString (OptC.max_size bopt k)) ^ "\n")
+            val sc = partition (OptC.max_size bopt k) c
             val optsc = meld_nodes gs bopt sc
           in
             koptimize (k-1) (flatten optsc)
