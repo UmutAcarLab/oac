@@ -23,7 +23,7 @@ phony:
 
 %.mlton.bin: phony
 	@mkdir -p bin
-	$(MLTON) -mlb-path-var 'COMPAT mlton' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
+	$(MLTON) -mlb-path-var 'COMPAT mlton' -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
 
 %.ffi.bin: phony
 	@mkdir -p bin

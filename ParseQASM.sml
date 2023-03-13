@@ -30,7 +30,7 @@ struct
         in
           DelayedSeq.tabulate
             (fn i => Seq.subseq chars (splitStart i, splitEnd i - splitStart i))
-            (Seq.length charPos)
+            (1 + Seq.length charPos)
         end
       val lines = split chars (#"\n")
       fun line i = DelayedSeq.nth lines i
@@ -50,12 +50,16 @@ struct
           val line_split = split (line i) (#" ")
           val gate = Parse.parseString (DelayedSeq.nth line_split 0)
           val numinputs = DelayedSeq.length line_split - 1
+          fun all_white_space l = List.length (String.tokens (fn c => c = #" ") (Parse.parseString l)) = 0
         in
-          (gate, List.tabulate (numinputs, (fn i => getqindex (DelayedSeq.nth line_split (1 + i)))))
+          if all_white_space (line i) then NONE
+          else
+            SOME (gate, List.tabulate (numinputs, (fn i => getqindex (DelayedSeq.nth line_split (1 + i)))))
         end
 
       val numLines = DelayedSeq.length lines
-      val circuit = Seq.tabulate parseGateLine (numLines - head_off)
+      val c = Seq.tabulate parseGateLine (numLines - head_off)
+      val circuit = Seq.mapOption (fn x => x) c
     in
       (nqubits, circuit)
     end
