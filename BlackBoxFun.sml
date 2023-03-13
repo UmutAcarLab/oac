@@ -9,13 +9,14 @@ struct
   type collection = {circuits : (ComplexMatrix.t * Circuit.circuit) Seq.t, max_size : int}
   type t = collection Seq.t
 
-  fun load f =
+  fun load f nq =
     let
+      val _ = print ("parsing quartz = " ^ (f) ^ "\n")
       val (ssrep, tm) = Util.getTime (fn _ => ParseQuartz.parse_rep_multi f)
       fun form_tuple rep =
         let
           val grep = Seq.map (Circuit.labelToGate) rep
-          val c = Circuit.from_raw_sequence grep
+          val c = Circuit.from_raw_sequence (nq, grep)
         in
           (Circuit.eval_circuit c, c)
         end
@@ -33,9 +34,12 @@ struct
         else
           let
             val flagName = "filerep" ^ (Int.toString idx)
+            val sc = (CLA.parseString flagName "")
+            val _ = print ("f = " ^ sc ^ "\n")
             val c =
-              if CLA.parseFlag flagName then load (CLA.parseString flagName "")
-              else {circuits = Seq.empty(), max_size= 0}
+              case (CLA.parseString flagName "") of
+                "" => {circuits = Seq.empty(), max_size= 0}
+              | f => load f idx
           in
             loop (idx - 1) (c::acc)
           end
@@ -82,7 +86,7 @@ struct
           (* (printSeq p); print (ComplexMatrix.str m); (printSeq p');print (ComplexMatrix.str m');  *)
           SOME (m', p', Seq.length p - Seq.length p'))
       end *)
-  fun best_equivalent opt c = raise Unimplemented
+  fun best_equivalent opt c = NONE
     (* let
       bindings
     in
