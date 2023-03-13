@@ -1,1 +1,6 @@
+$(SML_LIB)/smlnj-lib/Util/smlnj-lib.mlb
 lib/github.com/mpllang/mpllib/sources.$(COMPAT).mlb
+Complex.sml
+COMPLEX_MATRIX.sml
+ComplexMatrix.sml
+QSet.sml
