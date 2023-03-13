@@ -13,6 +13,14 @@ struct
   | SD of int
   | TD of int
 
+  fun support g =
+    case g of
+      H(x) => QSet.from_list ([x])
+    | S(x) => QSet.from_list ([x])
+    | T(x) => QSet.from_list ([x])
+    | HD(x) => QSet.from_list ([x])
+    | SD(x) => QSet.from_list ([x])
+    | TD(x) => QSet.from_list ([x])
 
   fun labelToGate g =
     case g of
@@ -22,7 +30,7 @@ struct
       | ("hdg", [x]) => HD (x)
       | ("sdg", [x]) => SD (x)
       | ("tdg", [x]) => TD (x)
-      | _ => raise InvalidGate
+      | _ => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
 
   fun str g =
     case g of
@@ -207,8 +215,10 @@ end
 
 
 structure CliffordOPT = CircuitOPT (structure GateSet = CliffordGateSet)
-
-
+val f = CLA.parseString "circuit" "test-small.qasm"
+val c = CliffordOPT.from_qasm f
+val _ = CliffordOPT.cprint c
+val c' = CliffordOPT.optimize c
 
 (*
 functor CircuitOpt =

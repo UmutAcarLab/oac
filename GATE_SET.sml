@@ -5,5 +5,6 @@ sig
   val labelToGate : string * int List.list -> gate
   val str : gate -> string
   val inverse : gate -> gate
+  val support : gate -> QSet.t
   val gate_matrix : gate -> ComplexMatrix.t
 end

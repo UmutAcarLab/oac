@@ -1,7 +1,6 @@
-meld-opt.mlb
+lib.mlb
 GATE_SET.sml
-CIRCUIT_OPT.sml
+CIRCUIT.sml
 ParseQASM.sml
 parse-quartz.mlb
-BlackBoxFun.sml
 CircuitFun.sml
