@@ -6,7 +6,8 @@ sig
   type circuit
   val labelToGate : string * int List.list -> gate
   val eval_raw_sequence : gate Seq.t -> ComplexMatrix.t
-  val from_raw_sequence : gate Seq.t -> circuit
+  val from_raw_sequence : int * gate Seq.t -> circuit
+  val cprint : circuit -> unit
   val eval_circuit : circuit -> ComplexMatrix.t
   val support : circuit -> QSet.t
 
@@ -20,5 +21,10 @@ sig
   val is_id : gate -> bool
   val id_gate : int -> gate
   val gate_support : gate -> QSet.t
+
+  val make_circuit : QSet.t -> (int Seq.t) -> (int) * (int * int -> gate) -> circuit
+
+
+  val patch_circuit : circuit -> (int -> int) -> circuit -> unit
 end
 
