@@ -81,44 +81,68 @@ struct
       print ("circuit  = " ^ str ^ "\n")
     end
 
-  fun from_raw_sequence (nq, (gseq: gate Seq.t)) =
+  fun gen_idx qs =
     let
-      val idx = Seq.tabulate (fn i => i) nq
+      val qubits = QSet.to_seq qs
+      val max_qubit = Seq.reduce (Int.max) 0 qubits
+      val bools = Seq.tabulate (fn i => if QSet.contains (qs, i) then 1 else 0) (1 + max_qubit)
+    in
+      (qubits, #1 (Seq.scan op+ 0 bools))
+    end
+
+  fun from_raw_sequence_with_set (qs : QSet.t, (gseq: gate Seq.t)) =
+    let
+      val (qubits, idx) = gen_idx qs
+      fun q_to_qidx q = Seq.nth idx q
+      fun qidx_to_q qidx = Seq.nth qubits qidx
+
+      val nq = Seq.length qubits
       val gate_count = Seq.length gseq
       val _ = print ("gate count = " ^ (Int.toString gate_count) ^ "\n")
+      exception LayerFull of int
       fun gen_layers lest =
         let
-          exception LayerFull
-          val layers = Seq.tabulate (fn i => Seq.tabulate (fn q => id_gate (q)) nq) lest
+          val layers = Seq.tabulate (fn i => Seq.map (fn q => id_gate (q)) qubits) lest
           val frontier = Seq.tabulate (fn i => 0) nq
           fun loop idx nl =
             if idx = gate_count then nl
             else
-              let
+              (let
                 (* fun fill_layers (st, last) =
                   if (st > last) then ()
                   else (ArraySlice.update (layers, st, Seq.tabulate (fn q => id_gate (q)) nq); fill_layers (st + 1, last)) *)
 
                 val g = Seq.nth gseq idx
                 val supp = gate_support g
-                val layer_num = QSet.fold (fn (max, q) => Int.max (Seq.nth frontier q, max)) 0 supp
-                val _ = if layer_num >= lest then raise LayerFull else ()
+                val layer_num = QSet.fold (fn (q, max) => Int.max (Seq.nth frontier (q_to_qidx q), max)) 0 supp
+                val _ = if layer_num >= lest then raise LayerFull (lest) else ()
                 (* val _ = if nl >= layer_num then () else (fill_layers (nl + 1, layer_num)) *)
                 val layer = Seq.nth layers layer_num
-                val _ = QSet.foreach supp (fn q => (ArraySlice.update (layer, q, g); ArraySlice.update (frontier, q, 1 + layer_num)))
+                val _ =
+                  QSet.foreach supp (fn q =>
+                    let
+                      val qidx = q_to_qidx q
+                    in
+                      (ArraySlice.update (layer, qidx, g); ArraySlice.update (frontier, qidx, 1 + layer_num))
+                    end
+                    )
               in
                 loop (idx + 1) (Int.max (1 + layer_num, nl))
-              end
-          (* handle LayerFull => gen_layers (2 * lest) *)
+              end)
 
           val nl = loop 0 0
         in
           Seq.take layers nl
         end
-      val layers = gen_layers (2 * (gate_count div nq))
+      val layers =
+        (gen_layers (2 * (gate_count div nq)))
+        handle LayerFull lest => gen_layers (2 * lest)
     in
-      {qset = QSet.from_seq idx, layers = layers, idx = idx}
+      {qset = qs, layers = layers, idx = idx}
     end
+
+  fun from_raw_sequence (nq, gseq) =
+    from_raw_sequence_with_set ((QSet.from_seq (Seq.tabulate (fn x => x) nq)), gseq)
 
   fun load_circuit f =
     let
@@ -132,7 +156,7 @@ struct
 
   fun make_circuit qs idx (num_layers, f) =
     let
-      val num_qubits = Seq.length idx
+      val num_qubits = QSet.size qs
       fun tab_layer l = Seq.tabulate (fn qidx => f (l, qidx)) num_qubits
       val layers = Seq.tabulate tab_layer num_layers
     in
