@@ -22,6 +22,17 @@ struct
   val add = S.add
   val subtract = S.subtract
 
+  fun str s : string =
+    let
+      val ss = to_seq s
+      val sss = Seq.map (Int.toString) ss
+      val sr = Seq.reduce (fn (a, b) => a ^ ", " ^ b) "" sss
+    in
+      ("(" ^ sr ^ ")\n")
+    end
+
+  fun exists s p = S.find (fn x => p (x)) s
+
   fun some s =
     case S.find (fn _ => true) s of
       SOME e => e
