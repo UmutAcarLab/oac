@@ -24,18 +24,18 @@ struct
 
 
   open T
-  fun gen_all_subckt c qs (supp_size, max_size) =
+  fun gen_all_subckt c (qs, av) (supp_size, max_size) =
     let
       val ms = case max_size of SOME (m) => m | NONE => (Option.valOf Int.maxInt)
-      val n = QSet.size qs
-      val _ = print ("arguments = " ^ (Int.toString ms) ^ "\n")
+      val n = QSet.size qs + QSet.size av
       val (all, k) = case supp_size of SOME (k) => (false, k) | NONE => (true, n)
-      val _ = print ("k = " ^ (Int.toString k) ^ "\n")
       val sc = S.parse c ms
 
       fun create_circuit qs ms =
         let
+          val _ = print ("calling create with qset = " ^ (QSet.str qs))
           val (cqs, sz, ctxtfront) = S.gen_max_subckt sc qs
+          val _ = print ("created circuit of size = " ^ (Int.toString (sz)) ^ "\n")
         in
           if sz = 0 then []
           else [(cqs, ctxtfront)]
@@ -72,15 +72,15 @@ struct
             l1@l2
           end
     in
-      if all then loop_all (QSet.empty) qs
-      else loopk (QSet.empty) qs n
+      (* TODO: figure out the right arguments here *)
+      if all then loop_all qs av
+      else loopk qs av (QSet.size qs + QSet.size av)
     end
 
 
   fun subckt (c : Circuit.circuit) q k max_size =
     let
-      val _ = print ("arguments = " ^ (Int.toString k) ^ " " ^ (Int.toString max_size) ^ "\n")
-      val candidates = gen_all_subckt c (QSet.singleton q) (SOME 1, SOME 4)
+      val candidates = gen_all_subckt c (QSet.empty , Circuit.support c) (SOME k, SOME max_size)
       val _ = print ("num subckts = " ^ (Int.toString (List.length candidates)) ^ "\n")
       val _ = List.app (Circuit.cprint o S.to_norm_circuit o (#1)) candidates
     in
@@ -149,9 +149,10 @@ struct
   fun optimize_base bbopt (c : Circuit.circuit) =
     let
       val n = Circuit.num_qubits c
+      val max_breadth = BlackBoxOpt.max_breadth bbopt
 
       fun loop_size q sz (change, c) =
-        if sz = n then (change, c)
+        if sz > max_breadth then (change, c)
         else let
           val d = (BlackBoxOpt.max_size bbopt sz)
           val (sub', ctxtfrontier) =
@@ -160,7 +161,7 @@ struct
             | NONE => (NONE, fn x => x)
         in
           case sub' of
-            NONE => (print "nothing\n"; loop_size q (sz + 1) (change, c))
+            NONE => (print "no optimization\n"; loop_size q (sz + 1) (change, c))
           | SOME s => (Circuit.patch_circuit c ctxtfrontier s; loop_size q (sz + 1) (true, c))
         end
 
