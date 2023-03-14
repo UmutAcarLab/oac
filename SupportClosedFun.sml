@@ -19,12 +19,12 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
         supp
       end
 
-    fun gen_map_seq qs max_qubit =
+    fun gen_idx qs =
       let
-        val bools = Seq.tabulate (fn i => if QSet.contains (qs, i) then 1 else 0) max_qubit
-        val (f, offs) = Seq.scan op+ 0 bools
+        val max_qubit = QSet.fold (Int.max) 0 qs
+        val bools = Seq.tabulate (fn i => if QSet.contains (qs, i) then 1 else 0) (1 + max_qubit)
       in
-        f
+        #1 (Seq.scan op+ 0 bools)
       end
 
     fun to_norm_circuit (c as {qset, layers, idx} : circuit) =
@@ -34,6 +34,13 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
         Circuit.make_circuit qset idx (Seq.length layers, fn (l, qidx) => #2 (gateqidx c (l, qidx)))
       end
 
+    datatype front_state = A | P of {idx : int, gate : QSet.t * gate}
+
+    fun fr_to_idx d fs =
+      case fs of
+        A => d
+      | P {idx, gate} => idx
+
     fun gen_max_subckt (c : circuit) (qs : QSet.t) =
       let
         val {qset, layers, idx} = c
@@ -41,55 +48,67 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
 
         val qubits = QSet.to_seq qs
         val num_qubits = (Seq.length qubits)
-        val frontier = Seq.tabulate (fn i => 0) num_qubits
-
         val num_layers = Seq.length layers
+        val frontier = Seq.tabulate (fn i => A) num_qubits
+        val idx' = gen_idx qs
 
-        val idx' =
-          let
-            val max_qubit = Seq.reduce (Int.max) 0 qubits
-          in
-            gen_map_seq qs (1 + max_qubit)
-          end
-
-        fun loop ll sz =
-          let
-            fun scope qidx = Seq.nth frontier qidx >= 0
+        exception LoopInvariant
+        (* ll: list of layers,  lidx : next layer idx, sz : number of non_id gates, av : active qubits *)
+        fun loop (ll, lidx) sz (aq : QSet.t) =
+          if lidx = num_layers then
+            (Seq.rev (Seq.fromList ll), sz)
+          else let
             val new_layer = ArraySlice.full (ForkJoin.alloc num_qubits)
 
             fun qidx'_to_q qidx' = Seq.nth qubits qidx'
+            fun q_to_qidx' q =  Seq.nth idx' q
+
             fun qidx'_to_qidx qidx' =  Seq.nth idx (qidx'_to_q qidx')
 
             val _ = Seq.foreach frontier
-              (fn (qidx', frq) =>
-                let
-                  val in_scope = scope qidx'
-                  val (supp, og) = Seq.nth (Seq.nth layers frq) (qidx'_to_qidx qidx')
-                  val (g, bump) =
-                    let
-                      val common = QSet.intersect (supp, qs)
-                      val sz = QSet.size common
-                    in
-                      if (in_scope andalso sz = QSet.size supp) then ((supp, og), true)
-                      else ((common, Circuit.id_gate (qidx'_to_q qidx')), false)
-                    end
-                  val _ = ArraySlice.update (new_layer, qidx', g)
-                in
-                  if bump andalso (frq < num_layers - 1) then ArraySlice.update (frontier, qidx', 1 + frq)
-                  else (ArraySlice.update (frontier, qidx', ~1))
-                end
+              (fn (qidx', fr) =>
+                case fr of
+                  P {idx, gate} => (ArraySlice.update (new_layer, qidx', gate))
+                | A =>
+                  let
+                    (* val _ = print ("layer = " ^ (Int.toString lidx) ^ " qidx' = " ^ (Int.toString qidx') ^ "\n") *)
+                    (* val _ = print ("supp = " ^ (QSet.str supp)) *)
+                    (* val (supp, og) = Seq.nth (Seq.nth layers frq) (qidx'_to_qidx qidx') *)
+
+                    val q = qidx'_to_q qidx'
+                    val extend = QSet.is_subset (closed_support c (lidx, q), aq)
+                    val g =
+                      if extend then (gate c (lidx, q))
+                      else if lidx > 0 then
+                        case ll of
+                          l::_ => (#1(Seq.nth l qidx'), Circuit.id_gate (q))
+                        | _ => raise LoopInvariant
+                      else (QSet.singleton q, Circuit.id_gate (q))
+                    val _ = ArraySlice.update (new_layer, qidx', g)
+                    val _ = if (not extend) then ArraySlice.update (frontier, qidx', P({idx = lidx, gate =  g})) else ()
+                  in
+                    ()
+                  end
               )
-            val non_id_gates = DelayedSeq.reduce op+ 0 (DelayedSeq.map (fn (supp, g) => if Circuit.is_id g then 0 else 1) (DelayedSeq.fromArraySeq new_layer))
-            val some_in_scope =
-              DelayedSeq.reduce (fn (a, b) => a orelse b) false (DelayedSeq.map (fn fr => fr >= 0) (DelayedSeq.fromArraySeq frontier))
+
+            val non_id_gates =
+              DelayedSeq.reduce op+ 0 (DelayedSeq.map (fn (supp, g) => if Circuit.is_id g then 0 else 1) (DelayedSeq.fromArraySeq new_layer))
+
+            val active_seq = Seq.mapIdx (fn (qidx', fr) => case fr of A => qidx'_to_q qidx' | _ => ~1) frontier
+            val aq = (QSet.from_seq (Seq.filter (fn x => x >= 0) active_seq))
+
+            (* (Seq.reduce (Int.max) 0 (Seq.map (fr_to_idx (num_layers + 1)) frontier)) = (num_layers + 1) *)
+            (* val lidx = *)
+              (* DelayedSeq.reduce (Int.min) (num_layers) (DelayedSeq.map (fn fr => case fr of P _ => num_layers | A x => x) (DelayedSeq.fromArraySeq frontier)) *)
           in
-            if some_in_scope then loop (new_layer::ll) (sz + non_id_gates)
-            else (Seq.fromList (new_layer::ll), sz + non_id_gates)
+            if (QSet.size aq > 0) then loop ((new_layer::ll), (lidx + 1)) (sz + non_id_gates)  aq
+            else (Seq.rev (Seq.fromList ll), sz + non_id_gates)
           end
-        val (layers, sz) = loop [] 0
+        val (layers, sz) = loop ([], 0) 0 qs
+        val gate_len = Seq.map (fr_to_idx num_layers) frontier
         val c' = {qset = qs, layers = layers, idx = idx'}
       in
-        (c', sz, fn q => Seq.nth frontier (Seq.nth idx' q))
+        (c', sz, fn q => Seq.nth gate_len (Seq.nth idx' q))
       end
 
     fun parse (c : Circuit.circuit) max_size =
@@ -98,20 +117,14 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
         val qubits = QSet.to_seq (Circuit.support c)
         val n = Seq.length qubits
         (* maps q \in qubits to [0, ... n - 1] *)
-        val idx =
-          let
-            val max_qubit = Seq.reduce (Int.max) 0 qubits
-          in
-            gen_map_seq (Circuit.support c) (1 + max_qubit)
-          end
-
+        val idx = gen_idx (Circuit.support c)
         val csizes = Seq.tabulate (fn i => 0) n
         fun layeri i = Circuit.layer c i
         fun act_qubit qidx = Seq.nth qubits qidx
         fun gateqidx l qidx = Circuit.gate c l (act_qubit qidx)
 
         fun create_layers i min ll =
-          if min = max_size orelse i = num_layers then Seq.fromList ll
+          if min = max_size orelse i = num_layers then Seq.rev (Seq.fromList ll)
           else
             let
               val layer = layeri i
@@ -124,22 +137,23 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
                     val g =
                       if in_scope then gateqidx layer qidx
                       else (Circuit.id_gate (act_qubit qidx))
-                    val supp = QSet.empty
-                      (* case ll of
+                    (* val _ = print ("parse layer = " ^ (Int.toString i) ^ " qidx = " ^ (Int.toString qidx) ^ "\n") *)
+                    val supp =
+                      case ll of
                         nil => Circuit.gate_support g
-                      | l::_ => QSet.union (Circuit.gate_support g, #1 (Seq.nth l qidx)) *)
+                      | l::_ => QSet.union (Circuit.gate_support g, #1 (Seq.nth l qidx))
+                    (* val _ = print ("parse supp = " ^ (QSet.str supp)) *)
                   in
                     (supp, g)
                   end
                 ) n
-              val _ = print ("new_layer done\n")
               val _ = Seq.foreach csizes
                 (fn (qidx, sz) =>
                   if scope qidx then
                     let
                       val g = gateqidx layer qidx
                       val supp = Circuit.gate_support g
-                      val new_size = 1 + (QSet.fold (fn (acc, q') => Int.max (acc, Seq.nth csizes (Seq.nth idx q'))) 0 supp)
+                      val new_size = 1 + (QSet.fold (fn (q', acc) => Int.max (acc, Seq.nth csizes (Seq.nth idx q'))) 0 supp)
                     in
                       ArraySlice.update (csizes, qidx, new_size)
                     end
