@@ -163,6 +163,8 @@ struct
       {qset = qs, layers = layers, idx = idx}
     end
 
+  exception PatchUnimplemented
+
   fun patch_circuit (c : circuit) (ctxtfrontier : int -> int) (nc : circuit) =
     let
       val support = support nc
@@ -172,9 +174,20 @@ struct
         if l >= num_layers_new then id_gate (q)
         else gate nc (layer nc l) q
 
+      fun non_id_depth q =
+        let
+          fun loop lidx =
+            if lidx < 0 then 0
+            else if is_id (gate nc (layer nc lidx) q) then loop (lidx - 1)
+            else (lidx + 1)
+        in
+          loop (num_layers_new - 1)
+        end
+
       fun replace_gates q =
         let
           val flen = ctxtfrontier q
+          val _ = if (non_id_depth q) > flen then raise PatchUnimplemented else ()
           val qidx = Seq.nth (#idx c) q
           fun loop lidx =
             if lidx = flen then ()
