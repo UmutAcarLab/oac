@@ -86,14 +86,17 @@ struct
           (* (printSeq p); print (ComplexMatrix.str m); (printSeq p');print (ComplexMatrix.str m');  *)
           SOME (m', p', Seq.length p - Seq.length p'))
       end *)
-  fun best_equivalent opt c = NONE
-    (* let
-      bindings
+  fun best_equivalent opt c =
+    let
+      val supp = Circuit.support c
+      val q = QSet.some supp
     in
-      body
-    end *)
+      SOME (Circuit.from_raw_sequence_with_set (supp, Seq.empty()))
+    end
 
-  fun max_breadth opt = Seq.length opt
-  fun max_size (opt: t) x = #max_size (Seq.nth opt x)
+  (* fun max_breadth opt = Seq.length opt *)
+  fun max_breadth opt = 2
+  (* fun max_size (opt: t) x = #max_size (Seq.nth opt x) *)
+  fun max_size (opt: t) x = 5
 
 end

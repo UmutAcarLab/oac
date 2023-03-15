@@ -161,8 +161,15 @@ struct
             | NONE => (NONE, fn x => x)
         in
           case sub' of
-            NONE => (print "no optimization\n"; loop_size q (sz + 1) (change, c))
-          | SOME s => (Circuit.patch_circuit c ctxtfrontier s; loop_size q (sz + 1) (true, c))
+            NONE => (loop_size q (sz + 1) (change, c))
+          | SOME s =>
+            let
+              val _ = (print "before "; Circuit.cprint c)
+              val _ = Circuit.patch_circuit c ctxtfrontier s
+              val _ = (print "after "; Circuit.cprint c)
+            in
+              loop_size q (sz + 1) (true, c)
+            end
         end
 
       fun loop_bit q (change, c) =
@@ -197,7 +204,13 @@ struct
         end
     | LEAF c => LEAF (optimize_base bbopt c) *)
 
-  fun optimize bbopt c = optimize_base bbopt c
+  fun optimize bbopt c =
+    let
+      val c' = optimize_base bbopt c
+      val _  = (print "after all "; Circuit.cprint c')
+    in
+      c'
+    end
     (* let
       val c' = parse c
     in
