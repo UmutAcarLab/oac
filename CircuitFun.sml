@@ -40,7 +40,38 @@ struct
   fun num_qubits (c : circuit) = QSet.size (#qset c)
   fun support (c : circuit) = (#qset c)
 
-  fun eval_circuit _ = raise Unimplemented
+  fun eval_circuit (c as {qset, layers, idx}) = raise Unimplemented
+    (* let
+
+      val nq = num_qubits c
+
+      (* cnot (0, 3), x(1), x(2) *)
+      (* perm(1, 3) * cnot (0, 1) * perm (1, 3),  x(1), x(2) *)
+      fun eval_layer l =
+        let
+          val perm =
+            let
+              val p = Seq.tabulate (fn i => i) nq
+              fun loop q =
+                if q = nq then ()
+                else
+                  let
+                    val g =
+                  in
+                    body
+                  end
+            in
+
+            end
+
+        in
+          body
+        end
+
+      val ml = Seq.map eval_layer layers
+    in
+      Seq.reduce Matrix.* Matrix.id(size c) ml
+    end *)
 
   fun to_raw_sequence (c : circuit) =
     let
