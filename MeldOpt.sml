@@ -152,20 +152,23 @@ struct
       val max_breadth = BlackBoxOpt.max_breadth bbopt
 
       fun loop_size q sz (change, c) =
-        if sz > max_breadth then (change, c)
+        if (sz > max_breadth) orelse (Circuit.size c = 0) then (change, c)
         else let
           val d = (BlackBoxOpt.max_size bbopt sz)
-          val (sub', ctxtfrontier) =
+          val sub' =
             case subckt c q sz d of
-              SOME (s, cf) => (BlackBoxOpt.best_equivalent bbopt s, cf)
-            | NONE => (NONE, fn x => x)
+              SOME (s, cf) =>
+                (case BlackBoxOpt.best_equivalent bbopt s of
+                  NONE => NONE
+                | SOME s' => SOME (s', (cf, Circuit.size s)))
+            | NONE => NONE
         in
           case sub' of
             NONE => (loop_size q (sz + 1) (change, c))
-          | SOME s =>
+          | SOME (s', ctxt_and_size) =>
             let
               val _ = (print "before "; Circuit.cprint c)
-              val _ = Circuit.patch_circuit c ctxtfrontier s
+              val _ = Circuit.patch_circuit c ctxt_and_size s'
               val _ = (print "after "; Circuit.cprint c)
             in
               loop_size q (sz + 1) (true, c)
@@ -173,7 +176,7 @@ struct
         end
 
       fun loop_bit q (change, c) =
-        if q = n then (change, c)
+        if q = n orelse (Circuit.size c = 0) then (change, c)
         else let
           val (change', c') = loop_size q 0 (false, c)
         in
@@ -184,7 +187,7 @@ struct
         let
           val (change, c') = loop_bit 0 (false, c)
         in
-          if change then loop c'
+          if change andalso (Circuit.size c' <> 0) then loop c'
           else c
         end
     in

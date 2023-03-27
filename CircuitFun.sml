@@ -5,7 +5,9 @@ struct
 
   datatype gate = P of GateSet.gate | I of int
   type layer = gate Seq.t
-  type circuit = {qset : QSet.t, layers: layer Seq.t, idx : int Seq.t}
+  type circuit = {qset : QSet.t, layers: layer Seq.t, idx : int Seq.t, size : int ref}
+
+  fun size {qset, layers, idx, size} = !size
 
   fun is_id g =
     case g of
@@ -19,10 +21,10 @@ struct
 
   fun id_gate x = I (x)
 
-  fun layer {qset, layers, idx} x = Seq.nth layers x
+  fun layer {qset, layers, idx, ...} x = Seq.nth layers x
   fun init_layer n = ArraySlice.full (ForkJoin.alloc n)
 
-  fun gate {qset, layers, idx} l q =
+  fun gate {qset, layers, idx, ...} l q =
     let
       val qidx = (Seq.nth idx q)
     in
@@ -35,12 +37,39 @@ struct
       I x => QSet.singleton (x)
     | P g => GateSet.support g
 
-  fun size (c : circuit) = raise Unimplemented
 
   fun num_qubits (c : circuit) = QSet.size (#qset c)
   fun support (c : circuit) = (#qset c)
+(*
+  fun mat_gate g (nq, idx) =
+    let
+      val perm = Seq.tabulate (fn i => ~i) nq
+      val supp = gate_support g
+      val supp_list = QSet.to_list (supp)
+      val sz = List.length supp
 
-  fun eval_circuit (c as {qset, layers, idx}) = raise Unimplemented
+      fun loop buck l =
+        if buck = sz then ()
+        else
+          case l of
+            nil =>
+              (if Seq.nth perm buck < 0 then ArraySlice.update (perm, buck, buck) else ()
+              ; loop (buck + 1) nil)
+          | q :: rl =>
+            let
+              val qidx = Seq.nth idx q
+            in
+              if Seq.nth perm buck = ~buck andalso (not (QSet.contains )) then
+                (ArraySlice.update (perm, buck ))
+              else loop (buck + 1) rl
+            end
+
+    in
+      body
+    end *)
+
+
+  fun eval_circuit (c as {qset, layers, idx, size}) = raise Unimplemented
     (* let
 
       val nq = num_qubits c
@@ -75,7 +104,7 @@ struct
 
   fun to_raw_sequence (c : circuit) =
     let
-      val {qset, layers, idx} = c
+      val {qset, layers, idx, ...} = c
       val num_qubits = QSet.size qset
       fun layer_to_lines l =
         let
@@ -87,7 +116,10 @@ struct
             else let
               val g = Seq.nth l qidx
               val qs = gate_support g
-              val _ = QSet.foreach qs (fn q => ArraySlice.update (done, Seq.nth idx q, true))
+              val _ = QSet.foreach qs (fn q =>
+                (* (print ("q = " ^ (Int.toString q) ^ "\n"); print (" qidx = " ^ (Int.toString (Seq.nth idx q) ^ "\n"));  *)
+                ArraySlice.update (done, Seq.nth idx q, true))
+                (* ) *)
             in
               case g of
                 P g' => loop (qidx + 1) (g'::acc)
@@ -102,9 +134,9 @@ struct
       (num_qubits, c)
     end
 
-  fun cprint (c) =
+  fun cprint (c : circuit) =
     let
-      val {qset, layers, idx} = c
+      val {qset, layers, idx, ...} = c
       val (nq, gqasm) = to_raw_sequence c
       val gstr = Seq.map GateSet.str gqasm
       val str = Seq.reduce (fn (a, b) => a ^ "\n" ^ b) "" gstr
@@ -129,7 +161,6 @@ struct
 
       val nq = Seq.length qubits
       val gate_count = Seq.length gseq
-      val _ = print ("gate count = " ^ (Int.toString gate_count) ^ "\n")
       exception LayerFull of int
       fun gen_layers lest =
         let
@@ -169,7 +200,7 @@ struct
         (gen_layers (2 * (gate_count div nq)))
         handle LayerFull lest => gen_layers (2 * lest)
     in
-      {qset = qs, layers = layers, idx = idx}
+      {qset = qs, layers = layers, idx = idx, size = ref (Seq.length gseq)}
     end
 
   fun from_raw_sequence (nq, gseq) =
@@ -183,20 +214,45 @@ struct
       Seq.map (to_circ_gate o GateSet.labelToGate) circuit
     end
 
-  fun num_layers {qset, layers, idx} = Seq.length layers
+  fun num_layers {qset, layers, idx, ...} = Seq.length layers
 
   fun make_circuit qs idx (num_layers, f) =
     let
       val num_qubits = QSet.size qs
+      fun layer_size ly =
+        let
+          fun loop qidx count qs =
+            if qidx = num_qubits then count
+            else if QSet.contains (qs, qidx) then loop (qidx + 1) count qs
+            else if is_id (Seq.nth ly qidx) then loop (qidx + 1) count qs
+            else
+              let
+                val g = Seq.nth ly qidx
+                val qs' = QSet.fold (fn (q, qs') => QSet.add (qs', Seq.nth idx q)) qs (gate_support g)
+              in
+                loop (qidx + 1) (count + 1) (qs')
+              end
+        in
+          loop 0 0 (QSet.empty)
+        end
       fun tab_layer l = Seq.tabulate (fn qidx => f (l, qidx)) num_qubits
-      val layers = Seq.tabulate tab_layer num_layers
+
+      val (sz, layers) =
+        let
+          val layers = Seq.tabulate tab_layer num_layers
+          val layer_counts = Seq.map layer_size layers
+        in
+          (Seq.reduce op+ 0 layer_counts, layers)
+        end
+
     in
-      {qset = qs, layers = layers, idx = idx}
+      {qset = qs, layers = layers, idx = idx, size = ref (sz)}
     end
 
   exception PatchUnimplemented
 
-  fun patch_circuit (c : circuit) (ctxtfrontier : int -> int) (nc : circuit) =
+
+  fun patch_circuit (c : circuit) (ctxtfrontier : (int -> int), ctxtsize : int) (nc : circuit) =
     let
       val support = support nc
       val num_layers_new = num_layers nc
@@ -226,8 +282,12 @@ struct
         in
           loop 0
         end
+
+      val _ = QSet.foreach support replace_gates
+      val szref = #size c
+      val _ = (szref := !szref - ctxtsize + (size nc))
     in
-      QSet.foreach support replace_gates
+      ()
     end
 
   fun eval_raw_sequence s = raise Unimplemented
