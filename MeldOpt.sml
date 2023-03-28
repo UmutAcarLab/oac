@@ -33,9 +33,9 @@ struct
 
       fun create_circuit qs ms =
         let
-          val _ = print ("calling create with qset = " ^ (QSet.str qs))
+          (* val _ = print ("calling create with qset = " ^ (QSet.str qs)) *)
           val (cqs, sz, ctxtfront) = S.gen_max_subckt sc qs
-          val _ = print ("created circuit of size = " ^ (Int.toString (sz)) ^ "\n")
+          (* val _ = print ("created circuit of size = " ^ (Int.toString (sz)) ^ "\n") *)
         in
           if sz = 0 then []
           else [(cqs, ctxtfront)]
@@ -81,8 +81,8 @@ struct
   fun subckt (c : Circuit.circuit) q k max_size =
     let
       val candidates = gen_all_subckt c (QSet.empty , Circuit.support c) (SOME k, SOME max_size)
-      val _ = print ("num subckts = " ^ (Int.toString (List.length candidates)) ^ "\n")
-      val _ = List.app (Circuit.cprint o S.to_norm_circuit o (#1)) candidates
+      (* val _ = print ("num subckts = " ^ (Int.toString (List.length candidates)) ^ "\n") *)
+      (* val _ = List.app (Circuit.cprint o S.to_norm_circuit o (#1)) candidates *)
     in
       case candidates of
         nil => NONE
@@ -167,9 +167,9 @@ struct
             NONE => (loop_size q (sz + 1) (change, c))
           | SOME (s', ctxt_and_size) =>
             let
-              val _ = (print "before "; Circuit.cprint c)
+              (* val _ = (print "before "; Circuit.cprint c) *)
               val _ = Circuit.patch_circuit c ctxt_and_size s'
-              val _ = (print "after "; Circuit.cprint c)
+              (* val _ = (print "after "; Circuit.cprint c) *)
             in
               loop_size q (sz + 1) (true, c)
             end
@@ -183,18 +183,19 @@ struct
           loop_bit (q + 1) (change orelse change', c')
         end
 
-      fun loop c =
+      fun loop (c, opt) =
         let
           val (change, c') = loop_bit 0 (false, c)
         in
-          if change andalso (Circuit.size c' <> 0) then loop c'
-          else c
+          if change andalso (Circuit.size c' <> 0) then
+            loop (c', (opt orelse change))
+          else (c, opt)
         end
     in
-      loop c
+      loop (c, false)
     end
 
-  fun meld c1 c2 = raise Unimplemented
+  (* fun meld c1 c2 = raise Unimplemented *)
 
   (* fun optimize_tree bbopt c =
     case c of
@@ -207,18 +208,46 @@ struct
         end
     | LEAF c => LEAF (optimize_base bbopt c) *)
 
+  fun meld bbopt c1 c2 =
+    let
+      fun meld_rec nl c1 c2 =
+        (* TODO: stop early once there are no new circuits, for example,
+         * if you can't optimize after d peels, stop
+        *)
+        if nl = 0 then c2
+        else
+          let
+            val (c1, peel) = Circuit.split c1 (nl - 1)
+            val c2' = Circuit.prepend (peel, c2)
+            val (c2'_opt, _) = (optimize_base bbopt c2)
+          in
+            meld_rec (nl - 1) c1 c2'_opt
+          end
+    in
+      meld_rec (Circuit.num_layers c1) c1 c2
+    end
+
+  fun simple_opt bbopt c =
+    let
+      val num_layers = Circuit.num_layers c
+    in
+      if num_layers < 2 then #1 (optimize_base bbopt c)
+      else
+        let
+          val (c1, c2) = Circuit.split c (num_layers div 2)
+          val (opc1, opc2) = (simple_opt bbopt c1, simple_opt bbopt c2)
+        in
+          meld bbopt opc1 opc2
+        end
+    end
+
   fun optimize bbopt c =
     let
-      val c' = optimize_base bbopt c
+      val c' = simple_opt bbopt c
       val _  = (print "after all "; Circuit.cprint c')
     in
       c'
     end
-    (* let
-      val c' = parse c
-    in
-      optimize_tree bbopt c'
-    end *)
 
 end
 
