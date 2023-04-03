@@ -37,6 +37,7 @@ struct
       I x => QSet.singleton (x)
     | P g => GateSet.support g
 
+  fun gate_support_idx (c : circuit, g : gate) = QSet.map (Seq.nth (#idx c)) (gate_support g)
 
   fun num_qubits (c : circuit) = QSet.size (#qset c)
   fun support (c : circuit) = (#qset c)
@@ -103,7 +104,7 @@ struct
 
   (* cnot (0, 3), x(1), x(2) *)
   (* perm(1, 3) * cnot (0, 1) * perm (1, 3),  x(1), x(2) *)
-  fun eval_circuit (c as {qset, layers, idx, size}) = 
+  fun eval_circuit (c as {qset, layers, idx, size}) =
   (* !size=3 *)
     let
       val (nq, gqasm) = to_raw_sequence c
@@ -111,8 +112,8 @@ struct
       (* print(GateSet.str(Seq.nth gqasm 0)) *)
       fun tensorize_gate (g : GateSet.gate) =
         let
-          val q_arr = GateSet.support g
-          val support_size = QSet.size q_arr
+          val supp = gate_support_idx (c, P (g))
+          val support_size = QSet.size supp
           fun shift_left n i =
             let
               val n_word = Word.fromInt n
@@ -145,39 +146,34 @@ struct
             in
               Word.toInt result_word
             end
-          fun get_entry (ket, bra) = 
+          fun get_entry (ket, bra) =
             let
-              fun fun_i 0 = false
-                | fun_i iter = 
-                  let
-                    val i = nq - iter
-                    val q_arr_i = nq - 1 - i
-                    val bra_i_state = bit_and (shift_right bra i) 1
-                    val ket_i_state = bit_and (shift_right ket i) 1
-                  in
-                    if not (QSet.contains (q_arr, q_arr_i)) then
-                      if not (bra_i_state = ket_i_state) then
-                        true
-                      else
-                        fun_i (iter-1)
-                    else
-                      fun_i (iter-1)
-                  end
+              fun fun_i iter =
+                if iter = 0 then false
+                else let
+                  val i = nq - iter
+                  val q_arr_i = nq - 1 - i
+                  val bra_i_state = bit_and (shift_right bra i) 1
+                  val ket_i_state = bit_and (shift_right ket i) 1
+                in
+                  if not (QSet.contains (supp, q_arr_i)) andalso not (bra_i_state = ket_i_state) then true
+                  else fun_i (iter-1)
+                end
               val is_zero = fun_i nq
-              fun get_indexes 0 bra_index ket_index = (bra_index, ket_index)
-                | get_indexes iter bra_index ket_index =
-                  let
-                    val j = support_size - iter
-                    val i = nq - 1 - (Seq.nth (QSet.to_seq q_arr) j)
-                    val bra_i_state = bit_and (shift_right bra i) 1
-                    val new_bra_index = bit_or bra_index (shift_left bra_i_state (support_size - 1 - j))
-                    val ket_i_state = bit_and (shift_right ket i) 1
-                    val new_ket_index = bit_or ket_index (shift_left ket_i_state (support_size - 1 - j))
+              val supp_seq = QSet.to_seq supp
+              fun get_indexes iter bra_index ket_index =
+                if iter = 0 then (bra_index, ket_index)
+                else let
+                  val j = support_size - iter
+                  val i = nq - 1 - (Seq.nth supp_seq j)
+                  val bra_i_state = bit_and (shift_right bra i) 1
+                  val new_bra_index = bit_or bra_index (shift_left bra_i_state (support_size - 1 - j))
+                  val ket_i_state = bit_and (shift_right ket i) 1
+                  val new_ket_index = bit_or ket_index (shift_left ket_i_state (support_size - 1 - j))
+                in
+                  get_indexes (iter-1) new_bra_index new_ket_index
+                end
 
-                  in
-                    get_indexes (iter-1) new_bra_index new_ket_index
-                  end
-                  
               val (bra_index, ket_index) = get_indexes support_size 0 0
             in
               if is_zero then
@@ -185,10 +181,8 @@ struct
               else
                 Array2.sub ((GateSet.gate_matrix g), ket_index, bra_index)
             end
-
-                    
         in
-          (* T(0) @ I(1), S(0) @ I(1), H(0) @ I(1) 
+          (* T(0) @ I(1), S(0) @ I(1), H(0) @ I(1)
           matrices are all correct
           https://colab.research.google.com/drive/1taOfQhSk_-SXuBL2Zja_YgGb2wWl1KlH?usp=sharing *)
           ComplexMatrix.tabulate (width, width) get_entry

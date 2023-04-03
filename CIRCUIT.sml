@@ -29,8 +29,6 @@ sig
   val gate_support : gate -> QSet.t
 
   val make_circuit : QSet.t -> (int Seq.t) -> (int) * (int * int -> gate) -> circuit
-
-
   val patch_circuit : circuit -> ((int -> int) * int) -> circuit -> unit
 end
 
