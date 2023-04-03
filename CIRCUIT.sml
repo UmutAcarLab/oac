@@ -19,6 +19,9 @@ sig
 
   val num_qubits : circuit -> int
 
+  val split : circuit -> int -> (circuit * circuit)
+  val prepend : circuit * circuit -> circuit
+
 
   val gate : circuit -> layer -> int -> gate
   val is_id : gate -> bool

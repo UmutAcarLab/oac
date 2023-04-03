@@ -281,10 +281,27 @@ struct
 
   fun num_layers {qset, layers, idx, ...} = Seq.length layers
 
+  fun layer_size num_qubits idx ly =
+    let
+      fun loop qidx count qidx_set =
+        if qidx = num_qubits then count
+        else if QSet.contains (qidx_set, qidx) then loop (qidx + 1) count qidx_set
+        else if is_id (Seq.nth ly qidx) then loop (qidx + 1) count qidx_set
+        else
+          let
+            val g = Seq.nth ly qidx
+            val qidx_set' = QSet.fold (fn (q, qs') => QSet.add (qs', Seq.nth idx q)) qidx_set (gate_support g)
+          in
+            loop (qidx + 1) (count + 1) qidx_set'
+          end
+    in
+      loop 0 0 (QSet.empty)
+    end
+
   fun make_circuit qs idx (num_layers, f) =
     let
       val num_qubits = QSet.size qs
-      fun layer_size ly =
+      (* fun layer_size ly =
         let
           fun loop qidx count qs =
             if qidx = num_qubits then count
@@ -299,13 +316,13 @@ struct
               end
         in
           loop 0 0 (QSet.empty)
-        end
+        end *)
       fun tab_layer l = Seq.tabulate (fn qidx => f (l, qidx)) num_qubits
 
       val (sz, layers) =
         let
           val layers = Seq.tabulate tab_layer num_layers
-          val layer_counts = Seq.map layer_size layers
+          val layer_counts = Seq.map (layer_size num_qubits idx) layers
         in
           (Seq.reduce op+ 0 layer_counts, layers)
         end
@@ -356,4 +373,70 @@ struct
     end
 
   fun eval_raw_sequence s = raise Unimplemented
+
+  exception InvalidIdx
+
+  fun split (c : circuit) i =
+    let
+      val {qset, layers, idx, size} = c
+      val nq = QSet.size qset
+      val _ = if (Seq.length layers < i) then raise InvalidIdx else ()
+      val (l1, l2) = (Seq.take layers i, Seq.drop layers i)
+
+      val sub_size = fn l => Seq.reduce op+ 0 (Seq.map (layer_size nq idx) l)
+      val (s1, s2) =
+        if 2 * i < Seq.length layers then
+          let
+            val s1 = sub_size l1
+          in
+            (s1, !size - s1)
+          end
+        else
+          let
+            val s2 = sub_size l2
+          in
+            (!size - s2, s2)
+          end
+
+      val c1 = {qset = qset, layers = l1, idx = idx, size = ref s1}
+      val c2 = {qset = qset, layers = l2, idx = idx, size = ref s2}
+    in
+      (c1, c2)
+    end
+
+
+  exception PrependIncompat
+  fun prepend (c1 : circuit, c2: circuit) =
+    let
+      val {qset = q1, layers = l1, idx = idx1, size = s1} = c1
+      val {qset = q2, layers = l2, idx = idx2, size = s2} = c2
+      val compatible = QSet.is_subset (q1, q2) andalso (QSet.size q1 = QSet.size q2)
+      val _ = if (not compatible) then raise PrependIncompat else ()
+      val nq = QSet.size q1
+      val (nl1, nl2) = (Seq.length l1, Seq.length l2)
+
+      val layer_fun =
+        let
+          val idx_cmp = Seq.mapIdx (fn (i, id) => id = Seq.nth idx2 i) idx1
+          val idx_compat = Seq.reduce (fn (b1, b2) => b1 andalso b2) true idx_cmp
+          val permute_layer =
+            if idx_compat then (fn ly => ly)
+            else
+              let
+                val s = ArraySlice.full (ForkJoin.alloc nq)
+                val _ = QSet.foreach q2
+                  (fn q => ArraySlice.update (s, Seq.nth idx2 q, Seq.nth idx1 q))
+              in
+                (fn ly => Seq.tabulate (fn i => Seq.nth ly (Seq.nth s i)) nq)
+              end
+        in
+          (fn i =>
+            if i >= nl1 then Seq.nth l2 (i - nl1)
+            else permute_layer (Seq.nth l1 i))
+        end
+
+      val layers = Seq.tabulate layer_fun (nl1 + nl2)
+    in
+      {qset = q2, layers = layers, idx = idx2, size = ref (!s1 + !s2)}
+    end
 end
