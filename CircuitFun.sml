@@ -68,40 +68,6 @@ struct
       body
     end *)
 
-
-  fun eval_circuit (c as {qset, layers, idx, size}) = raise Unimplemented
-    (* let
-
-      val nq = num_qubits c
-
-      (* cnot (0, 3), x(1), x(2) *)
-      (* perm(1, 3) * cnot (0, 1) * perm (1, 3),  x(1), x(2) *)
-      fun eval_layer l =
-        let
-          val perm =
-            let
-              val p = Seq.tabulate (fn i => i) nq
-              fun loop q =
-                if q = nq then ()
-                else
-                  let
-                    val g =
-                  in
-                    body
-                  end
-            in
-
-            end
-
-        in
-          body
-        end
-
-      val ml = Seq.map eval_layer layers
-    in
-      Seq.reduce Matrix.* Matrix.id(size c) ml
-    end *)
-
   fun to_raw_sequence (c : circuit) =
     let
       val {qset, layers, idx, ...} = c
@@ -134,6 +100,105 @@ struct
       (num_qubits, c)
     end
 
+
+  (* cnot (0, 3), x(1), x(2) *)
+  (* perm(1, 3) * cnot (0, 1) * perm (1, 3),  x(1), x(2) *)
+  fun eval_circuit (c as {qset, layers, idx, size}) = 
+  (* !size=3 *)
+    let
+      val (nq, gqasm) = to_raw_sequence c
+      val width = Real.toInt(IEEEReal.TO_NEAREST) (Math.pow(2.0, Real.fromInt(nq)))
+      (* print(GateSet.str(Seq.nth gqasm 0)) *)
+      fun tensorize_gate (g : GateSet.gate) =
+        let
+          val q_arr = GateSet.support g
+          val support_size = QSet.size q_arr
+          fun shift_left n i =
+            let
+              val n_word = Word.fromInt n
+              val i_word = Word.fromInt i
+              val result_word = Word.<< (n_word, i_word)
+            in
+              Word.toInt result_word
+            end
+          fun shift_right n i =
+            let
+              val n_word = Word.fromInt n
+              val i_word = Word.fromInt i
+              val result_word = Word.>> (n_word, i_word)
+            in
+              Word.toInt result_word
+            end
+          fun bit_and a b =
+            let
+              val a_word = Word.fromInt a
+              val b_word = Word.fromInt b
+              val result_word = Word.andb (a_word, b_word)
+            in
+              Word.toInt result_word
+            end
+          fun bit_or a b =
+            let
+              val a_word = Word.fromInt a
+              val b_word = Word.fromInt b
+              val result_word = Word.orb (a_word, b_word)
+            in
+              Word.toInt result_word
+            end
+          fun get_entry (ket, bra) = 
+            let
+              fun fun_i 0 = false
+                | fun_i iter = 
+                  let
+                    val i = nq - iter
+                    val q_arr_i = nq - 1 - i
+                    val bra_i_state = bit_and (shift_right bra i) 1
+                    val ket_i_state = bit_and (shift_right ket i) 1
+                  in
+                    if not (QSet.contains (q_arr, q_arr_i)) then
+                      if not (bra_i_state = ket_i_state) then
+                        true
+                      else
+                        fun_i (iter-1)
+                    else
+                      fun_i (iter-1)
+                  end
+              val is_zero = fun_i nq
+              fun get_indexes 0 bra_index ket_index = (bra_index, ket_index)
+                | get_indexes iter bra_index ket_index =
+                  let
+                    val j = support_size - iter
+                    val i = nq - 1 - (Seq.nth (QSet.to_seq q_arr) j)
+                    val bra_i_state = bit_and (shift_right bra i) 1
+                    val new_bra_index = bit_or bra_index (shift_left bra_i_state (support_size - 1 - j))
+                    val ket_i_state = bit_and (shift_right ket i) 1
+                    val new_ket_index = bit_or ket_index (shift_left ket_i_state (support_size - 1 - j))
+
+                  in
+                    get_indexes (iter-1) new_bra_index new_ket_index
+                  end
+                  
+              val (bra_index, ket_index) = get_indexes support_size 0 0
+            in
+              if is_zero then
+                (0.0, 0.0)
+              else
+                Array2.sub ((GateSet.gate_matrix g), ket_index, bra_index)
+            end
+
+                    
+        in
+          (* T(0) @ I(1), S(0) @ I(1), H(0) @ I(1) 
+          matrices are all correct
+          https://colab.research.google.com/drive/1taOfQhSk_-SXuBL2Zja_YgGb2wWl1KlH?usp=sharing *)
+          ComplexMatrix.tabulate (width, width) get_entry
+        end
+      val g_matrices = Seq.map tensorize_gate gqasm
+      val final_matrix = Seq.reduce ComplexMatrix.* (ComplexMatrix.id(width)) (Seq.rev g_matrices)
+    in
+      final_matrix
+    end
+    
   fun cprint (c : circuit) =
     let
       val {qset, layers, idx, ...} = c

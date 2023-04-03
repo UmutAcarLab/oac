@@ -56,9 +56,9 @@ struct
     let
       val (cos45, sin45) = (sqrt(0.5), sqrt(0.5))
       val x = pi/(8.0)
-      val hm = ComplexMatrix.fromList [[( 0.0, cos45), (0.0, sin45)], [(0.0, cos45), (0.0, ~sin45)]]
-      val sm = ComplexMatrix.fromList [[( cos45, ~sin45), (  0.0, 0.0)], [(  0.0, 0.0), ( cos45,  sin45)]]
-      val tm = ComplexMatrix.fromList [[(cos(x), ~(sin(x))), (  0.0, 0.0)], [(  0.0, 0.0), (cos(x), sin(x))]]
+      val hm = ComplexMatrix.fromList [[( cos45, 0.0), (sin45, 0.0)], [(cos45, 0.0), (~sin45, 0.0)]]
+      val sm = ComplexMatrix.fromList [[( 1.0, 0.0), (  0.0, 0.0)], [(  0.0, 0.0), ( 0.0,  1.0)]]
+      val tm = ComplexMatrix.fromList [[( 1.0, 0.0), (  0.0, 0.0)], [(  0.0, 0.0), ( cos45,  sin45)]]
       val hdm = ComplexMatrix.dagger hm
       val sdm = ComplexMatrix.dagger sm
       val tdm = ComplexMatrix.dagger tm
@@ -218,7 +218,9 @@ structure CliffordOPT = CircuitOPT (structure GateSet = CliffordGateSet)
 val f = CLA.parseString "circuit" "test-small.qasm"
 val c = CliffordOPT.from_qasm f
 val _ = CliffordOPT.cprint c
-val c' = CliffordOPT.optimize c
+val m = CliffordOPT.eval_circuit c
+val _ = print(ComplexMatrix.str(m))
+(* val c' = CliffordOPT.optimize c *)
 
 (*
 functor CircuitOpt =

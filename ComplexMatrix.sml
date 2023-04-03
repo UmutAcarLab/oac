@@ -331,6 +331,23 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 			Math.sqrt(ss)
 		end
 
+	fun tensor (a, b) =
+		let
+			val (r1, c1) = size (a)
+			val (r2, c2) = size (b)
+			val (r, c) = (r1 * r2, c1 * c2)
+
+			fun e (i, j) =
+				let
+					val (r1', c1') = (i div r2, j div c2)
+					val (r2', c2') = (i mod r2, i mod c2)
+				in
+					Complex.multiply (A2.sub (a, r1', c1'), A2.sub(b, r2', c2'))
+				end
+		in
+			tabulate ((r, c), e)
+		end
+
 	fun a * b =
 	    let
 		val (l,n1) = size(a)
@@ -350,23 +367,6 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 	    in
 		tabulate((l,m),dot)
 	    end
-
-	fun tensor (a, b) =
-		let
-			val (r1, c1) = size (a)
-			val (r2, c2) = size (b)
-			val (r, c) = (r1 * r2, c1 * c2)
-
-			fun e (i, j) =
-				let
-					val (r1', c1') = (i div r2, j div c2)
-					val (r2', c2') = (i mod r2, i mod c2)
-				in
-					Complex.multiply (A2.sub (a, r1', c1'), A2.sub(b, r2', c2'))
-				end
-		in
-			tabulate ((r, c), e)
-		end
 
 	fun map2 f (a,b) =
 	    let
@@ -430,3 +430,6 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 	fun a - b = map2 Complex.sub (a,b)
 
     end
+
+    (* val x = 3 + 5
+    val _ = print(Int.toString(x)^"\n") *)

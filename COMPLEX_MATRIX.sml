@@ -5,6 +5,7 @@ sig
   val nth : t ->  (int * int) -> Complex.complex
   val * : t * t -> t
   val - : (t * t) -> t
+  val tensor : (t * t) -> t
   val compare : t * t -> order
   val det : t -> Complex.complex
   val dagger : t -> t
