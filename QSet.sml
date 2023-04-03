@@ -17,7 +17,7 @@ struct
   val singleton = S.singleton
   val from_seq = from_list o Seq.toList
   val to_seq = Seq.fromList o to_list
-
+  val map = S.map
   fun foreach s f = S.app f s
   val add = S.add
   val subtract = S.subtract
