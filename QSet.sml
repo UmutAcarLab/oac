@@ -32,6 +32,7 @@ struct
     end
 
   fun exists s p = S.find (fn x => p (x)) s
+  val find = S.find
 
   fun some s =
     case S.find (fn _ => true) s of

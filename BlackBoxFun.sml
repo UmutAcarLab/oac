@@ -6,7 +6,7 @@ struct
   structure Circuit = Circuit
   structure CLA = CommandLineArgs
 
-  type collection = {circuits : (ComplexMatrix.t * Circuit.circuit) Seq.t, max_size : int}
+  type collection = {circuits : (ComplexMatrix.t * Circuit.raw_circuit) Seq.t, max_size : int}
   type t = collection Seq.t
 
   fun load f nq =
@@ -16,9 +16,9 @@ struct
       fun form_tuple rep =
         let
           val grep = Seq.map (Circuit.labelToGate) rep
-          val c = Circuit.from_raw_sequence (nq, grep)
+          val c = (nq, grep)
         in
-          (Circuit.eval_circuit c, c)
+          (Circuit.eval_raw_sequence c, c)
         end
       val ss = Seq.map form_tuple ssrep
       val ml = DelayedSeq.reduce Int.max 0 (DelayedSeq.map (fn p => Seq.length p) (DelayedSeq.fromArraySeq ssrep))
@@ -65,38 +65,84 @@ struct
     in
       Seq.mapOption (fn x => x) s'
     end *)
+  fun max_breadth opt = Seq.length opt
+  (* fun max_breadth opt = 2 *)
+  fun max_size (opt: t) x =
+    if (x <= max_breadth opt) then #max_size (Seq.nth opt (x - 1))
+    else 0
 
-
-   (* fun find_approx (gs : t) (m, p) slop =
-      let
-        val {eq = mats, max_size = mlen, ...} = #optbrute gs
-        val slop' = slop/3.0
-        fun within_slop m (m', _) = abs (ComplexMatrix.proj_trace_dist (m, m') - slop') < slop'
-        fun find_best (m, p) =
-          Seq.reduce (fn ((ma, pa), (mb, pb)) => if (Seq.length pa < Seq.length pb) then (ma, pa) else (mb, pb)) (m, p)
-          (Seq.filter (within_slop m) mats)
-        val (m', p') = find_best (m, p)
-        val _ = if (ComplexMatrix.equiv (slop) (m, m')) then () else
-        (print (ComplexMatrix.str m); print (ComplexMatrix.str m'); print "problem in find_approx\n"; raise WrongOpt)
-
-       fun printSeq s = print ((Seq.reduce (fn (a, b) => a ^ " " ^ b) "" (Seq.map (label gs) s)) ^ "\n")
-      in
-        if (Seq.length p = Seq.length p') then NONE
-        else (
-          (* (printSeq p); print (ComplexMatrix.str m); (printSeq p');print (ComplexMatrix.str m');  *)
-          SOME (m', p', Seq.length p - Seq.length p'))
-      end *)
-  fun best_equivalent opt c =
+  fun equivalent_up_to_phase p (a, b) : bool =
     let
-      val supp = Circuit.support c
-      val q = QSet.some supp
+      val c = ComplexMatrix.* (a, ComplexMatrix.trans(ComplexMatrix.dagger b))
+      (* val _ = if (p) then print ("c is " ^ (ComplexMatrix.str c) ^ "\n") else () *)
+      val tolerance = 1E~15
+      fun diag c i = ComplexMatrix.nth c (i, i)
+      val eqs = Seq.tabulate (fn i => Complex.equivt tolerance (diag c 0, diag c i)) (#1 (ComplexMatrix.dimension c))
     in
-      SOME (Circuit.from_raw_sequence_with_set (supp, Seq.empty()))
+      Seq.reduce (fn (a, b) => a andalso b) true eqs
     end
 
-  (* fun max_breadth opt = Seq.length opt *)
-  fun max_breadth opt = 2
-  (* fun max_size (opt: t) x = #max_size (Seq.nth opt x) *)
-  fun max_size (opt: t) x = 5
+
+  fun proj_trace_dist (m1, m2) =
+    let
+      fun dim m = #1 (ComplexMatrix.dimension m)
+      fun rot_in d m i = ComplexMatrix.scale (Complex.ein d i) m
+      val d = dim m1
+      (* compute |M1 e^itheta - M2| for all theta = 2*i*pi/n *)
+      (* val all_rot = Seq.tabulate (fn i => Matrix.norm (Matrix.- (Matrix.scale (Complex.ein d i, m1), m2))) dim *)
+      val all_rot = Seq.tabulate (fn i => ComplexMatrix.norm (ComplexMatrix.- (rot_in d m1 i, m2))) d
+    in
+      Seq.reduce Real.min Real.posInf all_rot
+    end
+
+   fun find_approx ({circuits, max_size} : collection) (m, c) =
+      let
+        (* val _ = print ("finding opt for " ^ (ComplexMatrix.str m)) *)
+        val slop' = 1E~12
+        fun within_slop m (m', _) = equivalent_up_to_phase false (m, m')
+        fun find_best m =
+          let
+            val candidates = Seq.filter (within_slop m) circuits
+            fun select_smaller ((ma, ca), (mb, cb)) =
+              if (Circuit.size_raw ca < Circuit.size_raw cb) then (ma, ca)
+              else (mb, cb)
+          in
+            if (Seq.length candidates = 0) then NONE
+            else
+              SOME (Seq.reduce select_smaller ((Seq.nth candidates 0)) candidates)
+          end
+
+        val candidate = find_best m
+        (* val _ = if (ComplexMatrix.equiv (slop) (m, m')) then () else *)
+        (* (print (ComplexMatrix.str m); print (ComplexMatrix.str m'); print "problem in find_approx\n"; raise WrongOpt) *)
+        (* val _ = print ("best equiv is " ^ (Circuit.cstring c' "; ") ^ "\n")
+        val _ = print ("m is " ^ (ComplexMatrix.str m) ^ "\n")
+        val _ = print ("m' is " ^ (ComplexMatrix.str m') ^ "\n")
+        val _ = print ("eq = " ^ (Bool.toString (equivalent_up_to_phase true (m, m'))) ^ "\n") *)
+       (* fun printSeq s = print ((Seq.reduce (fn (a, b) => a ^ " " ^ b) "" (Seq.map (label gs) s)) ^ "\n") *)
+      in
+        case candidate of
+          NONE => NONE
+        | SOME (_, c') =>
+            if Circuit.size_raw c' >= Circuit.size c then NONE
+            else
+              let
+                val cidx = Circuit.reverse_idx c
+              in
+                SOME (Circuit.from_raw_sequence_with_idx (c', cidx))
+              end
+      end
+
+  fun best_equivalent opt c =
+    let
+      (* val _ = print ("finding best equiv for " ^ (Circuit.cstring c "; ") ^ "\n") *)
+      val qsz = QSet.size (Circuit.support c)
+    in
+      if (qsz <= max_breadth opt) then
+        find_approx (Seq.nth opt (qsz - 1)) (Circuit.eval_circuit c, c)
+      else NONE
+    end
+
+  (* fun max_size (opt: t) x = 5 *)
 
 end

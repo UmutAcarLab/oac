@@ -84,9 +84,10 @@ struct
       (* val _ = print ("num subckts = " ^ (Int.toString (List.length candidates)) ^ "\n") *)
       (* val _ = List.app (Circuit.cprint o S.to_norm_circuit o (#1)) candidates *)
     in
-      case candidates of
+      candidates
+      (* case candidates of
         nil => NONE
-      | (x, ctxt) :: lx => SOME (S.to_norm_circuit x, ctxt)
+      | (x, ctxt) :: lx => SOME (S.to_norm_circuit x, ctxt) *)
     end
 
 
@@ -155,13 +156,20 @@ struct
         if (sz > max_breadth) orelse (Circuit.size c = 0) then (change, c)
         else let
           val d = (BlackBoxOpt.max_size bbopt sz)
-          val sub' =
-            case subckt c q sz d of
+          val subckts = Seq.fromList (subckt c q sz d)
+          val best_equiv = Seq.map (fn (sc, cf) =>
+            let val c = S.to_norm_circuit sc in
+            case (BlackBoxOpt.best_equivalent bbopt c) of
+              NONE => NONE
+            | SOME s' => SOME (s', (cf, Circuit.size c)) end) subckts
+          val sub' = Seq.reduce (fn (a, b) => case a of NONE => b | _ => a) NONE best_equiv
+          (* val sub' = *)
+            (* case subckt c q sz d of
               SOME (s, cf) =>
                 (case BlackBoxOpt.best_equivalent bbopt s of
                   NONE => NONE
                 | SOME s' => SOME (s', (cf, Circuit.size s)))
-            | NONE => NONE
+            | NONE => NONE *)
         in
           case sub' of
             NONE => (loop_size q (sz + 1) (change, c))
@@ -178,7 +186,7 @@ struct
       fun loop_bit q (change, c) =
         if q = n orelse (Circuit.size c = 0) then (change, c)
         else let
-          val (change', c') = loop_size q 0 (false, c)
+          val (change', c') = loop_size q 1 (false, c)
         in
           loop_bit (q + 1) (change orelse change', c')
         end
@@ -191,8 +199,9 @@ struct
             loop (c', (opt orelse change))
           else (c, opt)
         end
+      val (c', change) = loop (c, false)
     in
-      loop (c, false)
+      (c', change)
     end
 
   (* fun meld c1 c2 = raise Unimplemented *)
@@ -219,12 +228,16 @@ struct
           let
             val (c1, peel) = Circuit.split c1 (nl - 1)
             val c2' = Circuit.prepend (peel, c2)
-            val (c2'_opt, _) = (optimize_base bbopt c2)
+            val (c2'_opt, _) = (optimize_base bbopt c2')
           in
             meld_rec (nl - 1) c1 c2'_opt
           end
+      (* val _ = print ("meld inputs ") *)
+      (* val _ = print ("c1 = "^(Circuit.cstring (c1) "; ") ^ "\t") *)
+      (* val _ = print ("c2 = "^(Circuit.cstring (c2) "; ") ^ "\t") *)
+      val c = meld_rec (Circuit.num_layers c1) c1 c2
     in
-      meld_rec (Circuit.num_layers c1) c1 c2
+      c
     end
 
   fun simple_opt bbopt c =
@@ -237,7 +250,7 @@ struct
           val (c1, c2) = Circuit.split c (num_layers div 2)
           val (opc1, opc2) = (simple_opt bbopt c1, simple_opt bbopt c2)
         in
-          meld bbopt opc1 opc2
+          (meld bbopt opc1 opc2)
         end
     end
 
@@ -248,7 +261,6 @@ struct
     in
       c'
     end
-
 end
 
 (*

@@ -46,6 +46,13 @@ struct
       Real.== (r, 0.0) andalso Real.== (c, 0.0)
     end
 
+  fun equivt t (a, b) =
+    let
+      val (r, c) = round t (sub (a, b))
+    in
+      Real.== (r, 0.0) andalso Real.== (c, 0.0)
+    end
+
   fun ein n i =
     let
       val ag = Real./ (2.0 * (Math.pi), Real.fromInt n)

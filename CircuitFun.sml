@@ -6,6 +6,7 @@ struct
   datatype gate = P of GateSet.gate | I of int
   type layer = gate Seq.t
   type circuit = {qset : QSet.t, layers: layer Seq.t, idx : int Seq.t, size : int ref}
+  type raw_circuit = int * gate Seq.t
 
   fun size {qset, layers, idx, size} = !size
 
@@ -31,6 +32,15 @@ struct
       Seq.nth l qidx
     end
 
+  fun gate_str (g) =
+    case g of
+      P g => GateSet.str g
+    | I x => "I(" ^ (Int.toString x) ^ ")"
+
+  fun gate_matrix g =
+    case g of
+      P g => GateSet.gate_matrix (g)
+    | I x => ComplexMatrix.id (2)
 
   fun gate_support g =
     case g of
@@ -89,7 +99,7 @@ struct
                 (* ) *)
             in
               case g of
-                P g' => loop (qidx + 1) (g'::acc)
+                P g' => loop (qidx + 1) (g::acc)
               | _ => loop (qidx + 1) acc
             end
         in
@@ -104,15 +114,14 @@ struct
 
   (* cnot (0, 3), x(1), x(2) *)
   (* perm(1, 3) * cnot (0, 1) * perm (1, 3),  x(1), x(2) *)
-  fun eval_circuit (c as {qset, layers, idx, size}) =
+  fun eval_gate_sequence fidx (nq, gqasm) =
   (* !size=3 *)
     let
-      val (nq, gqasm) = to_raw_sequence c
       val width = Real.toInt(IEEEReal.TO_NEAREST) (Math.pow(2.0, Real.fromInt(nq)))
       (* print(GateSet.str(Seq.nth gqasm 0)) *)
-      fun tensorize_gate (g : GateSet.gate) =
+      fun tensorize_gate (g : gate) =
         let
-          val supp = gate_support_idx (c, P (g))
+          val supp = QSet.map fidx (gate_support g)
           val support_size = QSet.size supp
           fun shift_left n i =
             let
@@ -146,6 +155,7 @@ struct
             in
               Word.toInt result_word
             end
+          val gmatrix = gate_matrix g
           fun get_entry (ket, bra) =
             let
               fun fun_i iter =
@@ -173,13 +183,12 @@ struct
                 in
                   get_indexes (iter-1) new_bra_index new_ket_index
                 end
-
               val (bra_index, ket_index) = get_indexes support_size 0 0
             in
               if is_zero then
                 (0.0, 0.0)
               else
-                Array2.sub ((GateSet.gate_matrix g), ket_index, bra_index)
+                Array2.sub (gmatrix, ket_index, bra_index)
             end
         in
           (* T(0) @ I(1), S(0) @ I(1), H(0) @ I(1)
@@ -192,16 +201,30 @@ struct
     in
       final_matrix
     end
-    
+
+  val eval_raw_sequence = eval_gate_sequence (fn x => x)
+  fun eval_circuit c = eval_gate_sequence (Seq.nth (#idx c)) (to_raw_sequence c)
+
   fun cprint (c : circuit) =
     let
       val {qset, layers, idx, ...} = c
       val (nq, gqasm) = to_raw_sequence c
-      val gstr = Seq.map GateSet.str gqasm
+      val gstr = Seq.map gate_str gqasm
       val str = Seq.reduce (fn (a, b) => a ^ "\n" ^ b) "" gstr
     in
       print ("circuit  = " ^ str ^ "\n")
     end
+
+  fun cstring (c : circuit) sep =
+    let
+      val {qset, layers, idx, ...} = c
+      val (nq, gqasm) = to_raw_sequence c
+      val gstr = Seq.map gate_str gqasm
+      val str = Seq.reduce (fn (a, b) => a ^ sep ^ b) "" gstr
+    in
+      str
+    end
+
 
   fun gen_idx qs =
     let
@@ -211,6 +234,8 @@ struct
     in
       (qubits, #1 (Seq.scan op+ 0 bools))
     end
+
+  fun size_raw (_, gseq) = Seq.length gseq
 
   fun from_raw_sequence_with_set (qs : QSet.t, (gseq: gate Seq.t)) =
     let
@@ -222,7 +247,7 @@ struct
       val gate_count = Seq.length gseq
       exception LayerFull of int
       fun gen_layers lest =
-        let
+        (let
           val layers = Seq.tabulate (fn i => Seq.map (fn q => id_gate (q)) qubits) lest
           val frontier = Seq.tabulate (fn i => 0) nq
           fun loop idx nl =
@@ -236,7 +261,7 @@ struct
                 val g = Seq.nth gseq idx
                 val supp = gate_support g
                 val layer_num = QSet.fold (fn (q, max) => Int.max (Seq.nth frontier (q_to_qidx q), max)) 0 supp
-                val _ = if layer_num >= lest then raise LayerFull (lest) else ()
+                val _ = if layer_num >= lest then (raise LayerFull (lest)) else ()
                 (* val _ = if nl >= layer_num then () else (fill_layers (nl + 1, layer_num)) *)
                 val layer = Seq.nth layers layer_num
                 val _ =
@@ -254,16 +279,35 @@ struct
           val nl = loop 0 0
         in
           Seq.take layers nl
-        end
+        end) handle LayerFull lest => gen_layers (2 * lest)
       val layers =
         (gen_layers (2 * (gate_count div nq)))
-        handle LayerFull lest => gen_layers (2 * lest)
     in
       {qset = qs, layers = layers, idx = idx, size = ref (Seq.length gseq)}
     end
 
   fun from_raw_sequence (nq, gseq) =
     from_raw_sequence_with_set ((QSet.from_seq (Seq.tabulate (fn x => x) nq)), gseq)
+
+  fun from_raw_sequence_with_idx ((nq, gseq), fidx) =
+    from_raw_sequence_with_set
+    (QSet.from_seq (Seq.tabulate (fn x => fidx x) nq),
+      Seq.map (fn P(g) => P(GateSet.map_support g fidx)) gseq)
+
+  fun reverse_idx (c as {qset, layers, idx, ...}) =
+    if size (c) = 0 then (fn x => x)
+    else
+      let
+        val nq = num_qubits c
+        fun get_act_qubit qidx =
+          let
+            val candidates = gate_support (Seq.nth (Seq.nth layers 0) qidx)
+          in
+            Option.valOf (QSet.find (fn q => Seq.nth idx q = qidx) candidates)
+          end
+      in
+        Seq.nth (Seq.tabulate get_act_qubit nq)
+      end
 
   fun load_circuit f =
     let
@@ -366,7 +410,7 @@ struct
       ()
     end
 
-  fun eval_raw_sequence s = raise Unimplemented
+
 
   exception InvalidIdx
 

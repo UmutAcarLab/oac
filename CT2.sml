@@ -14,6 +14,16 @@ struct
   | TD of int
   | CNOT of int * int
 
+  fun map_support g fidx =
+    case g of
+      H(x) => H (fidx x)
+    | S(x) => S (fidx x)
+    | T(x) => T (fidx x)
+    | HD(x) => HD (fidx x)
+    | SD(x) => SD (fidx x)
+    | TD(x) => TD (fidx x)
+    | CNOT (x, y) => CNOT (fidx x, fidx y)
+
   fun support g =
     case g of
       H(x) => QSet.from_list ([x])
@@ -32,7 +42,7 @@ struct
       | ("hdg", [x]) => HD (x)
       | ("sdg", [x]) => SD (x)
       | ("tdg", [x]) => TD (x)
-      | ("cnot", [x, y]) => CNOT (x, y)
+      | ("cx", [x, y]) => CNOT (x, y)
       | _ => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
 
   fun str g =
@@ -43,7 +53,7 @@ struct
     | HD(x) => "hdg (" ^ (Int.toString x) ^ ")"
     | SD(x) => "sdg (" ^ (Int.toString x) ^ ")"
     | TD(x) => "tdg (" ^ (Int.toString x) ^ ")"
-    | CNOT(x, y) => "cnot (" ^ (Int.toString x) ^ ", " ^ (Int.toString y) ^ ")"
+    | CNOT(x, y) => "cx (" ^ (Int.toString x) ^ ", " ^ (Int.toString y) ^ ")"
 
   fun inverse g =
     case g of
@@ -62,9 +72,9 @@ struct
       val (cos45, sin45) = (sqrt(0.5), sqrt(0.5))
       val x = pi/(8.0)
       val (one, z) = ((1.0, 0.0), (0.0, 0.0))
-      val hm = ComplexMatrix.fromList [[(0.0, cos45), (0.0, sin45)], [(0.0, cos45), (0.0, ~sin45)]]
-      val sm = ComplexMatrix.fromList [[(cos45, ~sin45), z], [z, (cos45, sin45)]]
-      val tm = ComplexMatrix.fromList [[(cos(x), ~(sin(x))), z], [z, (cos(x), sin(x))]]
+      val hm = ComplexMatrix.fromList [[( cos45, 0.0), (sin45, 0.0)], [(cos45, 0.0), (~sin45, 0.0)]]
+      val sm = ComplexMatrix.fromList [[one, z], [z, (0.0, 1.0)]]
+      val tm = ComplexMatrix.fromList [[one, z], [z, (cos45, sin45)]]
       val hdm = ComplexMatrix.dagger hm
       val sdm = ComplexMatrix.dagger sm
       val tdm = ComplexMatrix.dagger tm
@@ -88,4 +98,10 @@ structure TwoOPT = CircuitOPT (structure GateSet = TwoGateSet)
 val f = CLA.parseString "circuit" "test-small.qasm"
 val c = TwoOPT.from_qasm f
 val _ = TwoOPT.cprint c
+(* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
 val c' = TwoOPT.optimize c
+
+val _ = print "before circuit\n"
+val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c))
+val _ = print "after circuit\n"
+val _ = print (ComplexMatrix.str (TwoOPT.eval_circuit c'))

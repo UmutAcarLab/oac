@@ -7,6 +7,8 @@ sig
   val - : (t * t) -> t
   val tensor : (t * t) -> t
   val compare : t * t -> order
+  val toDiag : t  -> t
+  val trans : t  -> t
   val det : t -> Complex.complex
   val dagger : t -> t
   val fromList : Complex.complex list list -> t

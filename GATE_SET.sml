@@ -7,4 +7,5 @@ sig
   val inverse : gate -> gate
   val support : gate -> QSet.t
   val gate_matrix : gate -> ComplexMatrix.t
+  val map_support : gate -> (int -> int) -> gate
 end

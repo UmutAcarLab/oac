@@ -90,13 +90,16 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 		tabulate((n',1),(fn (i,_) => A2.sub(a,i,i)))
 	    end
 
-	fun toDiag(a) =
-	    let
-		val (n,m) = size(a)
-		val _ = if (m=1) then () else raise BadDimensions
-	    in
-		tabulate((n,n),(fn (i,j) => if (i=j) then A2.sub(a,i,0)
-				            else 0.0))
+	fun toDiag (a) =
+		let
+			val (n,m) = size(a)
+			val _ = if (m=n) then () else raise BadDimensions
+		in
+			tabulate ((n,n),
+				(fn (i,j) =>
+					if (i=j) then A2.sub(a, i, i)
+				  else (0.0, 0.0))
+				)
 	    end
 
 	fun copy(a)  =
@@ -349,7 +352,7 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 		end
 
 	fun a * b =
-	    let
+		let
 		val (l,n1) = size(a)
 		val (n2,m) = size(b)
 		val _ = if (n1 = n2) then () else raise BadDimensions
