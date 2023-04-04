@@ -128,8 +128,10 @@ struct
             else
               let
                 val cidx = Circuit.reverse_idx c
+                val c' = Circuit.from_raw_sequence_with_idx (c', cidx)
+                val _ = print ("using equality " ^ (Circuit.cstring c "; ") ^ "\t == " ^ (Circuit.cstring c' "; ") ^ "\n")
               in
-                SOME (Circuit.from_raw_sequence_with_idx (c', cidx))
+                SOME c'
               end
       end
 
