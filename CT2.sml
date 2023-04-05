@@ -5,14 +5,16 @@ struct
   exception InvalidGate
   open Math
 
+  type qubit = Qubit.qubit
+
   datatype gate =
-    H of int
-  | S of int
-  | T of int
-  | HD of int
-  | SD of int
-  | TD of int
-  | CNOT of int * int
+    H of qubit
+  | S of qubit
+  | T of qubit
+  | HD of qubit
+  | SD of qubit
+  | TD of qubit
+  | CNOT of qubit * qubit
 
   fun map_support g fidx =
     case g of
@@ -26,34 +28,34 @@ struct
 
   fun support g =
     case g of
-      H(x) => QSet.from_list ([x])
-    | S(x) => QSet.from_list ([x])
-    | T(x) => QSet.from_list ([x])
-    | HD(x) => QSet.from_list ([x])
-    | SD(x) => QSet.from_list ([x])
-    | TD(x) => QSet.from_list ([x])
-    | CNOT (x, y) => QSet.from_list ([x, y])
+      H(x) => [x]
+    | S(x) => [x]
+    | T(x) => [x]
+    | HD(x) => [x]
+    | SD(x) => [x]
+    | TD(x) => [x]
+    | CNOT (x, y) => [x, y]
 
   fun labelToGate g =
     case g of
-        ("h", [x]) => H (x)
-      | ("s", [x]) => S (x)
-      | ("t", [x]) => T (x)
-      | ("hdg", [x]) => HD (x)
-      | ("sdg", [x]) => SD (x)
-      | ("tdg", [x]) => TD (x)
-      | ("cx", [x, y]) => CNOT (x, y)
-      | _ => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
+      ("h", [x]) => H (x)
+    | ("s", [x]) => S (x)
+    | ("t", [x]) => T (x)
+    | ("hdg", [x]) => HD (x)
+    | ("sdg", [x]) => SD (x)
+    | ("tdg", [x]) => TD (x)
+    | ("cx", [x, y]) => CNOT (x, y)
+    | _ => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
 
   fun str g =
     case g of
-      H(x) => "h (" ^ (Int.toString x) ^ ")"
-    | S(x) => "s (" ^ (Int.toString x) ^ ")"
-    | T(x) => "t (" ^ (Int.toString x) ^ ")"
-    | HD(x) => "hdg (" ^ (Int.toString x) ^ ")"
-    | SD(x) => "sdg (" ^ (Int.toString x) ^ ")"
-    | TD(x) => "tdg (" ^ (Int.toString x) ^ ")"
-    | CNOT(x, y) => "cx (" ^ (Int.toString x) ^ ", " ^ (Int.toString y) ^ ")"
+      H(x) => "h (" ^ (Qubit.str x) ^ ")"
+    | S(x) => "s (" ^ (Qubit.str x) ^ ")"
+    | T(x) => "t (" ^ (Qubit.str x) ^ ")"
+    | HD(x) => "hdg (" ^ (Qubit.str x) ^ ")"
+    | SD(x) => "sdg (" ^ (Qubit.str x) ^ ")"
+    | TD(x) => "tdg (" ^ (Qubit.str x) ^ ")"
+    | CNOT(x, y) => "cx (" ^ (Qubit.str x) ^ ", " ^ (Qubit.str y) ^ ")"
 
   fun inverse g =
     case g of

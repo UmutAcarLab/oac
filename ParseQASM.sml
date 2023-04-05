@@ -36,13 +36,13 @@ struct
       fun line i = DelayedSeq.nth lines i
 
       (* given a char sequence of the form {q[n]...}, it returns the integer n *)
-      fun getqindex chars =
+      fun get_qubit chars =
         case Parse.parseInt (DelayedSeq.nth (split (Seq.drop chars 2) (#"]")) 0) of
-          SOME n => n
+          SOME n => Qubit.from_int n
         | NONE => raise InvalidFormat
 
       (* from qreg q[n], retrieve n *)
-      val nqubits = getqindex (Seq.drop (line 2) 5)
+      val nqubits = Qubit.to_int (get_qubit (Seq.drop (line 2) 5))
       val head_off = 3
       fun parseGateLine i =
         let
@@ -54,7 +54,7 @@ struct
         in
           if all_white_space (line i) then NONE
           else
-            SOME (gate, List.tabulate (numinputs, (fn i => getqindex (DelayedSeq.nth line_split (1 + i)))))
+            SOME (gate, List.tabulate (numinputs, (fn i => get_qubit (DelayedSeq.nth line_split (1 + i)))))
         end
 
       val numLines = DelayedSeq.length lines

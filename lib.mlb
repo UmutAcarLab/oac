@@ -3,4 +3,5 @@ lib/github.com/mpllang/mpllib/sources.$(COMPAT).mlb
 Complex.sml
 COMPLEX_MATRIX.sml
 ComplexMatrix.sml
-QSet.sml
+IntSet.sml
+Qubit.sml

@@ -127,8 +127,10 @@ struct
             if Circuit.size_raw c' >= Circuit.size c then NONE
             else
               let
-                val cidx = Circuit.reverse_idx c
-                val c' = Circuit.from_raw_sequence_with_idx (c', cidx)
+                val get_idx = (fn x => Qubit.to_int x)
+                val get_qubit = Circuit.idx_inverse c
+                val qrelabel = (get_qubit o get_idx)
+                val c' = Circuit.from_raw_sequence_with_relabel (c', qrelabel)
                 val _ = print ("using equality " ^ (Circuit.cstring c "; ") ^ "\t == " ^ (Circuit.cstring c' "; ") ^ "\n")
               in
                 SOME c'

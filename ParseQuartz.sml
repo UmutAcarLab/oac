@@ -5,11 +5,11 @@ sig
    * each circuit is a sequence of labels
    *)
   val parse : string -> string Seq.t Seq.t Seq.t
-  val parse_multi : string -> (string * int List.list) Seq.t Seq.t Seq.t
+  val parse_multi : string -> (string * Qubit.qubit List.list) Seq.t Seq.t Seq.t
   val str : string Seq.t Seq.t Seq.t -> string
 
-  val parse_rep : string -> (string * int List.list) Seq.t Seq.t
-  val parse_rep_multi : string -> (string * int List.list) Seq.t Seq.t
+  val parse_rep : string -> (string * Qubit.qubit List.list) Seq.t Seq.t
+  val parse_rep_multi : string -> (string * Qubit.qubit List.list) Seq.t Seq.t
   val str_rep : string Seq.t Seq.t -> string
 end
 
@@ -74,7 +74,7 @@ fun parse_gate_multi g =
     val app_seq = DelayedSeq.fromList (let val t = from_array (list_nth g 1) in t end)
     val s = DelayedSeq.map ((fn q => String.extract (q, 1, NONE)) o from_string) app_seq
   in
-    (gate, DelayedSeq.toList (DelayedSeq.map (int_from_string) s))
+    (gate, DelayedSeq.toList (DelayedSeq.map (Qubit.from_int o int_from_string) s))
   end
 
 fun parse_multi f =
@@ -113,7 +113,7 @@ fun parse_rep f =
       let
         val e' = from_array (list_nth e 1)
         val ss = Seq.fromList e'
-        fun parse_gates g = (from_string (list_nth g 0), [0])
+        fun parse_gates g = (from_string (list_nth g 0), [Qubit.from_int 0])
       in
         Seq.map (parse_gates o from_array) ss
       end
