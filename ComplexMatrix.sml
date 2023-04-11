@@ -351,6 +351,24 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 			tabulate ((r, c), e)
 		end
 
+	fun matVec (a : t, v : Complex.complex Seq.t) =
+		let
+			val (n, m) = size (a)
+			val n' = Seq.length v
+			val _ = if (n = n') then () else raise BadDimensions
+			fun dotv ri =
+				let
+					fun c1 * c2 = Complex.multiply (c1, c2)
+					fun loop (j, acc) =
+						if j = n then acc
+						else loop (j + 1, Complex.add (acc, A2.sub (a, ri, j) * (Seq.nth v j)))
+				in
+					loop (0, (0.0, 0.0))
+				end
+		in
+			Seq.tabulate dotv n
+		end
+
 	fun a * b =
 		let
 		val (l,n1) = size(a)

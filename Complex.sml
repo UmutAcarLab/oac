@@ -8,6 +8,14 @@ struct
 
   fun modulus ((a, b) : complex) = Math.sqrt (a * a + b * b)
 
+  fun polar_form ((a, b) : complex) =
+    let
+      val r = modulus (a, b)
+    in
+      (r, (a/r, b/r))
+    end
+
+
   fun add ((a1, b1) : complex, (a2, b2) : complex) : complex = (a1 + a2, b1 + b2)
 
   fun cdiv ((a, b) : complex, (c, d) : complex) : complex =

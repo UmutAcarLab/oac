@@ -216,16 +216,15 @@ struct
       print ("circuit  = " ^ str ^ "\n")
     end
 
-  fun cstring (c : circuit) sep =
+  fun raw_str (nq, gseq) sep =
     let
-      val {qset, layers, idx, ...} = c
-      val (nq, gqasm) = to_raw_sequence c
-      val gstr = Seq.map gate_str gqasm
+      val gstr = Seq.map gate_str gseq
       val str = Seq.reduce (fn (a, b) => a ^ sep ^ b) "" gstr
     in
       str
     end
 
+  fun cstring (c : circuit) sep = raw_str (to_raw_sequence c) sep
 
   fun size_raw (_, gseq) = Seq.length gseq
 

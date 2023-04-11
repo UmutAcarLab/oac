@@ -5,3 +5,4 @@ COMPLEX_MATRIX.sml
 ComplexMatrix.sml
 IntSet.sml
 Qubit.sml
+lib/Hashtable.sml

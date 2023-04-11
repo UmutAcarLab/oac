@@ -38,5 +38,8 @@ sig
 
   val make_circuit : QSet.t -> (int QMap.map) -> (int) * (int * int -> gate) -> circuit
   val patch_circuit : circuit -> ((Qubit.qubit -> int) * int) -> circuit -> unit
+
+
+  val raw_str : raw_circuit -> string -> string
 end
 

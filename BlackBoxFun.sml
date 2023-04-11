@@ -2,28 +2,147 @@
 functor BlackBoxOptFun (structure Circuit : CIRCUIT) : BLACK_BOX_OPT =
 struct
 
+
+  type mcseq = (ComplexMatrix.t * Circuit.raw_circuit) Seq.t
+
   exception Unimplemented
   structure Circuit = Circuit
   structure CLA = CommandLineArgs
 
-  type collection = {circuits : (ComplexMatrix.t * Circuit.raw_circuit) Seq.t, max_size : int}
+  fun phase_canonical m =
+    let
+      val n = #1 (ComplexMatrix.dimension m)
+      val mij = ComplexMatrix.nth m
+      fun next i j =
+        if j = n - 1 then (i + 1, 0)
+        else (i, j + 1)
+
+      val z = (0.0, 0.0)
+      fun first_nonzero (i, j) =
+        if Complex.equiv (mij (i, j), z) then first_nonzero (next i j)
+        else mij (i, j)
+
+      val (_, ethet) = Complex.polar_form (first_nonzero (0, 0))
+      val ethet' = Complex.conjugate ethet
+    in
+      ComplexMatrix.map (fn c => Complex.multiply (c, ethet')) m
+    end
+
+  structure QuartzInterface =
+  struct
+    fun load (f : string, nq : int) : (mcseq * int) =
+      let
+        val _ = print ("parsing quartz = " ^ (f) ^ "\n")
+        val (ssrep, tm) = Util.getTime (fn _ => ParseQuartz.parse_rep_multi f)
+        fun form_tuple rep =
+          let
+            val grep = Seq.map (Circuit.labelToGate) rep
+            val c = (nq, grep)
+            val m = Circuit.eval_raw_sequence c
+          in
+            (phase_canonical m, c)
+          end
+        val ss = Seq.map form_tuple ssrep
+        val ml = DelayedSeq.reduce Int.max 0 (DelayedSeq.map (fn p => Seq.length p) (DelayedSeq.fromArraySeq ssrep))
+      in
+        (ss, ml)
+      end
+
+    fun convert (f : string, f' : string) : unit = raise Unimplemented
+
+    fun equivalent_up_to_phase p (a, b) : bool =
+      let
+        val c = ComplexMatrix.* (a, (ComplexMatrix.dagger b))
+        (* c should be of the form k * I *)
+        val _ = if p then print (ComplexMatrix.str c) else ()
+        val tolerance = 1E~15
+        val c' = ComplexMatrix.scale (ComplexMatrix.nth c (0, 0)) (ComplexMatrix.id (#1 (ComplexMatrix.dimension c)))
+      in
+        ComplexMatrix.norm (ComplexMatrix.- (c, c')) <= tolerance
+      end
+
+    exception RaiseDiff
+    fun find_approx (circuits : mcseq) (m, c) : Circuit.raw_circuit option =
+      let
+        val slop' = 1E~12
+        fun within_slop m (m', _) = equivalent_up_to_phase false (m, m')
+        fun within_slop' m (m', c') =
+          let
+            val w = ComplexMatrix.norm (ComplexMatrix.- (m, m')) <= slop'
+            val w' = within_slop m (m', c')
+          in
+            if w = w' then w
+            else (
+            print (ComplexMatrix.str m); print ("\n\n\n"); print (ComplexMatrix.str m');
+            if w then print ("\ncanonical says equal\n")
+            else print ("\n upto_phase says equal\n");
+            equivalent_up_to_phase true (m, m');
+            print ((Circuit.raw_str c' "; "));
+            print ((Circuit.cstring c "; "));
+            raise RaiseDiff)
+          end
+
+        fun find_best m =
+          let
+            val candidates = Seq.filter (within_slop' (phase_canonical m)) circuits
+            fun select_smaller ((ma, ca), (mb, cb)) =
+              if (Circuit.size_raw ca < Circuit.size_raw cb) then (ma, ca)
+              else (mb, cb)
+          in
+            if (Seq.length candidates = 0) then NONE
+            else
+              SOME (Seq.reduce select_smaller ((Seq.nth candidates 0)) candidates)
+          end
+
+        val candidate = find_best m
+      in
+        case candidate of
+          NONE => NONE
+        | SOME (_, c') =>
+            if Circuit.size_raw c' >= Circuit.size c then NONE
+            else SOME c'
+      end
+  end
+
+  type store = (ComplexMatrix.t, Circuit.raw_circuit) Hashtable.hashtable
+
+  type collection = {max_size : int, cstore : store}
   type t = collection Seq.t
+
+  fun init_hash_table (sz, capacity) =
+    let
+      val hvec =
+        let
+          val rd = Random.rand (123, 456)
+          fun next_complex _ = (Random.randReal rd, Random.randReal rd)
+        in
+          ArraySlice.full (Array.tabulate (sz, next_complex))
+        end
+
+      fun hash m =
+        let
+          val svec = ComplexMatrix.matVec (m, hvec)
+          (* multiplying by idx differentiates b/w permutations of the same matrix *)
+          (* taking the real part differentiates b/w swapping real and img elements of a matrix *)
+          val svec_mod = Seq.mapIdx (fn (idx, c) => Real.fromInt (idx) * Complex.real (c)) svec
+          val sum_mod = 7917.0 * (Seq.reduce (Real.+) 0.0 svec_mod)
+          (* val _ = print ((Real.toString sum_mod) ^ "\t ") *)
+        in
+          Real.round sum_mod
+        end
+      fun eq (m1, m2) = ComplexMatrix.compare (m1, m2) = EQUAL
+    in
+      Hashtable.make ({hash = hash, eq = eq, capacity = capacity})
+    end
 
   fun load f nq =
     let
-      val _ = print ("parsing quartz = " ^ (f) ^ "\n")
-      val (ssrep, tm) = Util.getTime (fn _ => ParseQuartz.parse_rep_multi f)
-      fun form_tuple rep =
-        let
-          val grep = Seq.map (Circuit.labelToGate) rep
-          val c = (nq, grep)
-        in
-          (Circuit.eval_raw_sequence c, c)
-        end
-      val ss = Seq.map form_tuple ssrep
-      val ml = DelayedSeq.reduce Int.max 0 (DelayedSeq.map (fn p => Seq.length p) (DelayedSeq.fromArraySeq ssrep))
+      val (ss, ml) = QuartzInterface.load (f, nq)
+      val sz = Real.toInt(IEEEReal.TO_NEAREST) (Math.pow(2.0, Real.fromInt(nq)))
+      val ht = init_hash_table (sz, 5 * (Seq.length ss))
+      val _ = Seq.foreach ss (fn (_, (m, c)) => Hashtable.insert ht (m, c))
     in
-      {circuits = ss, max_size = ml}
+      {max_size = ml, cstore = ht}
     end
 
   fun init () =
@@ -38,7 +157,7 @@ struct
             val _ = print ("f = " ^ sc ^ "\n")
             val c =
               case (CLA.parseString flagName "") of
-                "" => {circuits = Seq.empty(), max_size= 0}
+                "" => {max_size = 0, cstore = init_hash_table (0, 0)}
               | f => load f idx
           in
             loop (idx - 1) (c::acc)
@@ -71,82 +190,35 @@ struct
     if (x <= max_breadth opt) then #max_size (Seq.nth opt (x - 1))
     else 0
 
-  fun equivalent_up_to_phase p (a, b) : bool =
+  fun reindex (c' : Circuit.raw_circuit, c : Circuit.circuit) =
     let
-      val c = ComplexMatrix.* (a, ComplexMatrix.trans(ComplexMatrix.dagger b))
-      (* val _ = if (p) then print ("c is " ^ (ComplexMatrix.str c) ^ "\n") else () *)
-      val tolerance = 1E~15
-      fun diag c i = ComplexMatrix.nth c (i, i)
-      val eqs = Seq.tabulate (fn i => Complex.equivt tolerance (diag c 0, diag c i)) (#1 (ComplexMatrix.dimension c))
+      val get_idx = (fn x => Qubit.to_int x)
+      val get_qubit = Circuit.idx_inverse c
+      val qrelabel = (get_qubit o get_idx)
+      val c'' = Circuit.from_raw_sequence_with_relabel (c', qrelabel)
     in
-      Seq.reduce (fn (a, b) => a andalso b) true eqs
+      c''
     end
 
-
-  fun proj_trace_dist (m1, m2) =
+  fun find ({max_size, cstore} : collection) (m, c) =
     let
-      fun dim m = #1 (ComplexMatrix.dimension m)
-      fun rot_in d m i = ComplexMatrix.scale (Complex.ein d i) m
-      val d = dim m1
-      (* compute |M1 e^itheta - M2| for all theta = 2*i*pi/n *)
-      (* val all_rot = Seq.tabulate (fn i => Matrix.norm (Matrix.- (Matrix.scale (Complex.ein d i, m1), m2))) dim *)
-      val all_rot = Seq.tabulate (fn i => ComplexMatrix.norm (ComplexMatrix.- (rot_in d m1 i, m2))) d
+      val m' = phase_canonical m
+      val c' = Hashtable.lookup cstore m'
     in
-      Seq.reduce Real.min Real.posInf all_rot
+      case c' of
+        NONE => NONE
+      | SOME c' =>
+          if Circuit.size_raw c' >= Circuit.size c then NONE
+          else SOME (reindex (c', c))
     end
-
-   fun find_approx ({circuits, max_size} : collection) (m, c) =
-      let
-        (* val _ = print ("finding opt for " ^ (ComplexMatrix.str m)) *)
-        val slop' = 1E~12
-        fun within_slop m (m', _) = equivalent_up_to_phase false (m, m')
-        fun find_best m =
-          let
-            val candidates = Seq.filter (within_slop m) circuits
-            fun select_smaller ((ma, ca), (mb, cb)) =
-              if (Circuit.size_raw ca < Circuit.size_raw cb) then (ma, ca)
-              else (mb, cb)
-          in
-            if (Seq.length candidates = 0) then NONE
-            else
-              SOME (Seq.reduce select_smaller ((Seq.nth candidates 0)) candidates)
-          end
-
-        val candidate = find_best m
-        (* val _ = if (ComplexMatrix.equiv (slop) (m, m')) then () else *)
-        (* (print (ComplexMatrix.str m); print (ComplexMatrix.str m'); print "problem in find_approx\n"; raise WrongOpt) *)
-        (* val _ = print ("best equiv is " ^ (Circuit.cstring c' "; ") ^ "\n")
-        val _ = print ("m is " ^ (ComplexMatrix.str m) ^ "\n")
-        val _ = print ("m' is " ^ (ComplexMatrix.str m') ^ "\n")
-        val _ = print ("eq = " ^ (Bool.toString (equivalent_up_to_phase true (m, m'))) ^ "\n") *)
-       (* fun printSeq s = print ((Seq.reduce (fn (a, b) => a ^ " " ^ b) "" (Seq.map (label gs) s)) ^ "\n") *)
-      in
-        case candidate of
-          NONE => NONE
-        | SOME (_, c') =>
-            if Circuit.size_raw c' >= Circuit.size c then NONE
-            else
-              let
-                val get_idx = (fn x => Qubit.to_int x)
-                val get_qubit = Circuit.idx_inverse c
-                val qrelabel = (get_qubit o get_idx)
-                val c' = Circuit.from_raw_sequence_with_relabel (c', qrelabel)
-                val _ = print ("using equality " ^ (Circuit.cstring c "; ") ^ "\t == " ^ (Circuit.cstring c' "; ") ^ "\n")
-              in
-                SOME c'
-              end
-      end
 
   fun best_equivalent opt c =
     let
-      (* val _ = print ("finding best equiv for " ^ (Circuit.cstring c "; ") ^ "\n") *)
       val qsz = QSet.size (Circuit.support c)
     in
       if (qsz <= max_breadth opt) then
-        find_approx (Seq.nth opt (qsz - 1)) (Circuit.eval_circuit c, c)
+        find (Seq.nth opt (qsz - 1)) (Circuit.eval_circuit c, c)
       else NONE
     end
-
-  (* fun max_size (opt: t) x = 5 *)
 
 end
