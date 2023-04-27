@@ -24,21 +24,26 @@ struct
 
 
   open T
+  exception Error
   fun gen_all_subckt c (qs, av) (supp_size, max_size) =
     let
       val ms = case max_size of SOME (m) => m | NONE => (Option.valOf Int.maxInt)
       val n = QSet.size qs + QSet.size av
       val (all, k) = case supp_size of SOME (k) => (false, k) | NONE => (true, n)
+      (* val _ = print ("original circuit = " ^ (Circuit.cstring c ";") ^ "\n") *)
       val sc = S.parse c ms
 
       fun create_circuit qs ms =
         let
           (* val _ = print ("calling create with qset = " ^ (QSet.str qs)) *)
-          val (cqs, sz, ctxtfront) = S.gen_max_subckt sc qs
-          (* val _ = print ("created circuit of size = " ^ (Int.toString (sz)) ^ "\n") *)
+          val subckt_opt = S.gen_max_subckt sc qs
         in
-          if sz = 0 then []
-          else [(cqs, ctxtfront)]
+          case subckt_opt of
+            NONE => []
+          | SOME (cqs, sz, ctxtfront) =>
+              if sz = 0 then []
+              else  [(cqs, ctxtfront)]
+              (* (print ("created circuit  = " ^ ((Circuit.cstring (S.to_norm_circuit cqs) ";")) ^ "\n"); [(cqs, ctxtfront)]) *)
         end
 
       fun drop_some (qs : QSet.t) av =
@@ -81,6 +86,7 @@ struct
   fun subckt (c : Circuit.circuit) q k max_size =
     let
       val candidates = gen_all_subckt c (QSet.empty , Circuit.support c) (SOME k, SOME max_size)
+      (* val _ = raise Unimplemented *)
       (* val _ = print ("num subckts = " ^ (Int.toString (List.length candidates)) ^ "\n") *)
       (* val _ = List.app (Circuit.cprint o S.to_norm_circuit o (#1)) candidates *)
     in
@@ -186,7 +192,7 @@ struct
       fun loop_bit q (change, c) =
         if q = n orelse (Circuit.size c = 0) then (change, c)
         else let
-          val (change', c') = loop_size q 1 (false, c)
+          val (change', c') = loop_size q 5 (false, c)
         in
           loop_bit (q + 1) (change orelse change', c')
         end
@@ -204,6 +210,25 @@ struct
       (c', change)
     end
 
+
+  fun prefix_opt_vertical bbopt (c : Circuit.circuit) =
+    let
+      val msize = BlackBoxOpt.max_size bbopt 1
+      fun loop (c, opt) =
+        let
+          val nl = Circuit.num_layers c
+          val cut = Int.min (msize, nl)
+          val (subckt, ctxt) = Circuit.split c cut
+        in
+          case (BlackBoxOpt.best_equivalent bbopt subckt, cut = nl) of
+            (NONE, _) => (c, opt)
+          | (SOME c', true) => (c', true)
+          | (SOME c', false) => loop (Circuit.prepend (c', ctxt), true)
+        end
+    in
+      loop (c, false)
+    end
+
   (* fun meld c1 c2 = raise Unimplemented *)
 
   (* fun optimize_tree bbopt c =
@@ -217,47 +242,75 @@ struct
         end
     | LEAF c => LEAF (optimize_base bbopt c) *)
 
-  fun meld bbopt c1 c2 =
+  fun meld bbopt optfun c1 c2 =
     let
-      fun meld_rec nl c1 c2 =
+      val stop_cnt = BlackBoxOpt.max_size bbopt 1
+      fun meld_rec cnt nl c1 c2 =
         (* TODO: stop early once there are no new circuits, for example,
          * if you can't optimize after d peels, stop
         *)
         if nl = 0 then c2
+        else if cnt = stop_cnt then Circuit.prepend(c1, c2)
         else
           let
             val (c1, peel) = Circuit.split c1 (nl - 1)
             val c2' = Circuit.prepend (peel, c2)
-            val (c2'_opt, _) = (optimize_base bbopt c2')
+            val (c2'_opt, change) = (optfun bbopt c2')
+            val cnt' = if change then 0 else cnt + 1
           in
-            meld_rec (nl - 1) c1 c2'_opt
+            meld_rec cnt' (nl - 1) c1 c2'_opt
           end
-      (* val _ = print ("meld inputs ") *)
-      (* val _ = print ("c1 = "^(Circuit.cstring (c1) "; ") ^ "\t") *)
-      (* val _ = print ("c2 = "^(Circuit.cstring (c2) "; ") ^ "\t") *)
-      val c = meld_rec (Circuit.num_layers c1) c1 c2
+      val c = meld_rec 0 (Circuit.num_layers c1) c1 c2
     in
       c
     end
 
-  fun simple_opt bbopt c =
+  fun simple_opt bbopt optfun c =
     let
-      val num_layers = Circuit.num_layers c
-    in
-      if num_layers < 2 then #1 (optimize_base bbopt c)
-      else
+      val gran = CommandLineArgs.parseInt "gran" 4
+      val bbsz = (BlackBoxOpt.max_size bbopt 1)
+
+      fun loop_seq c =
         let
-          val (c1, c2) = Circuit.split c (num_layers div 2)
-          val (opc1, opc2) = (simple_opt bbopt c1, simple_opt bbopt c2)
+          fun peel_and_append nl1 c1 c2 =
+            if nl1 = 0 then c2
+            else let
+              val (c1ctxt, peel) = Circuit.split c1 (nl1 - 1)
+              val c2' = Circuit.prepend (peel, c2)
+              val (c2'_opt, _) = (optfun bbopt c2')
+            in
+              peel_and_append (nl1 - 1) c1ctxt c2'_opt
+            end
+          val prefix_size = Int.max (0, Circuit.num_layers c - bbsz)
+          val (i1, i2) = Circuit.split c prefix_size
+          val (i2', _) = optfun bbopt i2
         in
-          (meld bbopt opc1 opc2)
+          peel_and_append (Circuit.num_layers i1) i1 i2'
         end
+
+      fun loop c =
+        let
+          val num_layers = Circuit.num_layers c
+        in
+          if num_layers < bbsz then #1 (optfun bbopt c)
+          else if num_layers < gran * bbsz then loop_seq c
+          else let
+            val (c1, c2) = Circuit.split c (num_layers div 2)
+            val pa = num_layers < bbsz * gran
+            val (opc1, opc2) = ForkJoin.par (fn _ => loop c1, fn _ => loop c2)
+          in
+            (meld bbopt optfun opc1 opc2)
+            (* Circuit.prepend (opc1, opc2) *)
+          end
+        end
+    in
+      loop c
     end
 
   fun optimize bbopt c =
     let
-      val c' = simple_opt bbopt c
-      val _  = (print "after all "; Circuit.cprint c')
+      val c' = simple_opt bbopt prefix_opt_vertical c
+      val _  = (print "after all "; print(Circuit.to_qasm c'))
     in
       c'
     end

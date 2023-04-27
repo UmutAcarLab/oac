@@ -17,10 +17,10 @@ struct
     in
       writeFile f (header ^ gate_s)
     end *)
+  fun seq_to_str s = CharVector.tabulate (Seq.length s, (fn i => Seq.nth s i))
 
-  fun readQASM path =
+  fun parse chars =
     let
-      val chars = ReadFile.contentsSeq path
       fun split chars char =
         let
           fun isChar i = Seq.nth chars i = char
@@ -35,26 +35,40 @@ struct
       val lines = split chars (#"\n")
       fun line i = DelayedSeq.nth lines i
 
-      (* given a char sequence of the form {q[n]...}, it returns the integer n *)
-      fun get_qubit chars =
-        case Parse.parseInt (DelayedSeq.nth (split (Seq.drop chars 2) (#"]")) 0) of
+      fun parse_qbit c =
+        case Parse.parseInt ((DelayedSeq.nth (split (Seq.drop c 1) (#"]")) 0)) of
           SOME n => Qubit.from_int n
-        | NONE => raise InvalidFormat
+        | NONE => (print ("invalid line = " ^ (seq_to_str c) ^ "\n"); raise InvalidFormat)
+
+      (* given a line it returns all integers i such that q[i] is in the line*)
+      fun get_qubits line =
+        let
+          val qsp = split line (#"q")
+          val numinputs = DelayedSeq.length qsp - 1
+        in
+          List.tabulate (numinputs, fn i => parse_qbit (DelayedSeq.nth qsp (i + 1)))
+        end
 
       (* from qreg q[n], retrieve n *)
-      val nqubits = Qubit.to_int (get_qubit (Seq.drop (line 2) 5))
+      val nqubits =
+        case get_qubits (Seq.drop (line 2) 5) of
+          [x] => Qubit.to_int x
+        | _ => raise InvalidFormat
       val head_off = 3
       fun parseGateLine i =
         let
           val i = i + head_off
-          val line_split = split (line i) (#" ")
-          val gate = Parse.parseString (DelayedSeq.nth line_split 0)
-          val numinputs = DelayedSeq.length line_split - 1
+          (* gate is the string before the first space. *)
+          val gate = Parse.parseString (DelayedSeq.nth (split (line i) (#" ")) 0)
+          val bits = Seq.drop (line i) (String.size gate)
+          val qsplits = (split bits (#"q"))
+          (* val numinputs = DelayedSeq.length qsplits - 1 *)
           fun all_white_space l = List.length (String.tokens (fn c => c = #" ") (Parse.parseString l)) = 0
         in
           if all_white_space (line i) then NONE
           else
-            SOME (gate, List.tabulate (numinputs, (fn i => get_qubit (DelayedSeq.nth line_split (1 + i)))))
+            SOME (gate, get_qubits bits)
+            (* List.tabulate (numinputs, (fn i => get_qubit (DelayedSeq.nth line_split (1 + i))))) *)
         end
 
       val numLines = DelayedSeq.length lines
@@ -63,4 +77,5 @@ struct
     in
       (nqubits, circuit)
     end
+
 end
