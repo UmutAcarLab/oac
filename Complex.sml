@@ -34,11 +34,6 @@ struct
 
   fun str (a, b) = (Real.toString a) ^ " + i" ^ (Real.toString b)
 
-  fun compare (c1, c2) =
-    case Real.compare (real c1, real c2) of
-      EQUAL => Real.compare (img c1, img c2)
-    | lg => lg
-
 
   fun round p (a, b) =
     let
@@ -53,6 +48,13 @@ struct
     in
       Real.== (r, 0.0) andalso Real.== (c, 0.0)
     end
+
+  (* fun compare (c1, c2) =
+    if equiv (c1, c2) then EQUAL else (GREATER) *)
+    (* (print (str c1); print ("\t");print (str c2); print ("\t");
+    case  (real c1, real c2) of
+      EQUAL => Real.compare (img c1, img c2)
+    | lg => (print "this case\n"; lg)) *)
 
   fun equivt t (a, b) =
     let

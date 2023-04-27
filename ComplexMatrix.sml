@@ -45,21 +45,6 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 		end *)
 
 
-  fun compare (a, b) =
-    let
-      val (n, m) = (nRows a, nCols a)
-      fun el c = Complex.compare (sub (a, c), sub (b, c))
-      val comp_arr = tabulate ((n, m), el)
-    in
-      A2.fold
-        A2.RowMajor
-        (fn (a, b) =>
-          case b of
-            EQUAL => a
-          | _ => b)
-        EQUAL
-        comp_arr
-    end
 
 	fun row(m,i) =
 	    A2.tabulate A2.RowMajor (1, nCols(m), (fn (_,j) => A2.sub(m,i,j)))
@@ -435,11 +420,26 @@ structure ComplexMatrix : COMPLEX_MATRIX =
 	    end
 
 
+
+
 	fun eltFormat(v) = Complex.str v
 	(* (Real.fmt (StringCvt.GEN(SOME(4))) v) *)
 
 	fun toString a = toStringF eltFormat a
   val str = toString
+
+  fun equal (a, b) =
+    let
+      val (n, m) = (nRows a, nCols a)
+      fun el c = Complex.equiv (sub (a, c), sub (b, c))
+      val comp_arr = tabulate (n, m) el
+			val res = A2.fold A2.RowMajor (fn (a, b) => a andalso b)
+        true
+        comp_arr
+    in
+			res
+			(* (print ("comparing " ^ (toString (a)) ^ "\n\n" ^ (toString (b)) ^ "\n"); print ("comparing result = " ^ (Bool.toString res) ^ "\n"); res) *)
+    end
 
 	fun trace a =
 		if (nRows a) = (nCols a) then
