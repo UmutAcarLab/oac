@@ -20,6 +20,7 @@ struct
       "I" => I (List.hd ql)
     | _ =>  P (GateSet.labelToGate (s, ql))
 
+
   fun id_gate x = I (x)
 
   fun layer {qset, layers, idx, ...} x = Seq.nth layers x
@@ -30,7 +31,7 @@ struct
   fun gate_str (g) =
     case g of
       P g => GateSet.str g
-    | I x => "I(" ^ (Qubit.str x) ^ ")"
+    | I x => ""
 
   fun gate_matrix g =
     case g of
@@ -74,6 +75,13 @@ struct
     in
       body
     end *)
+  fun from_qasm (chars : char Seq.t) =
+    let
+      val (nq, raw_str) = ParseQASM.parse chars
+      val raw_gate_seq = Seq.map labelToGate raw_str
+    in
+      (nq, raw_gate_seq)
+    end
 
   fun to_raw_sequence (c : circuit) =
     let
@@ -198,7 +206,7 @@ struct
           ComplexMatrix.tabulate (width, width) get_entry
         end
       val g_matrices = Seq.map tensorize_gate gqasm
-      val final_matrix = Seq.reduce ComplexMatrix.* (ComplexMatrix.id(width)) (Seq.rev g_matrices)
+      val final_matrix = Seq.reduce ComplexMatrix.* (ComplexMatrix.id (width)) (Seq.rev g_matrices)
     in
       final_matrix
     end
@@ -218,15 +226,24 @@ struct
 
   fun raw_str (nq, gseq) sep =
     let
-      val gstr = Seq.map gate_str gseq
-      val str = Seq.reduce (fn (a, b) => a ^ sep ^ b) "" gstr
+      val gstr = Seq.map (fn g => gate_str(g) ^ sep) gseq
+      val str = Seq.reduce (fn (a, b) => a ^ b) "" gstr
     in
       str
     end
 
-  fun cstring (c : circuit) sep = raw_str (to_raw_sequence c) sep
+  fun raw_to_qasm ((nq, gseq) : raw_circuit) =
+    let
+      val header = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[" ^ (Int.toString (nq)) ^ "];\n"
+    in
+      header ^ (raw_str (nq, gseq) ";\n")
+    end
 
   fun size_raw (_, gseq) = Seq.length gseq
+
+  fun cstring (c : circuit) sep = raw_str (to_raw_sequence c) sep
+  fun to_qasm (c : circuit) = raw_to_qasm (to_raw_sequence c)
+
 
   fun from_raw_sequence_with_set (qs : QSet.t, (gseq: gate Seq.t)) =
     let
@@ -244,11 +261,7 @@ struct
           fun loop idx nl =
             if idx = gate_count then nl
             else
-              (let
-                (* fun fill_layers (st, last) =
-                  if (st > last) then ()
-                  else (ArraySlice.update (layers, st, Seq.tabulate (fn q => id_gate (q)) nq); fill_layers (st + 1, last)) *)
-
+              let
                 val g = Seq.nth gseq idx
                 val supp = gate_support_unordered g
                 val layer_num = QSet.fold (fn (q, max) => Int.max (Seq.nth frontier (q_to_qidx q), max)) 0 supp
@@ -265,14 +278,14 @@ struct
                     )
               in
                 loop (idx + 1) (Int.max (1 + layer_num, nl))
-              end)
+              end
 
           val nl = loop 0 0
         in
           Seq.take layers nl
-        end) handle LayerFull lest => gen_layers (2 * lest)
+        end) handle LayerFull lest => (gen_layers (2 * lest))
       val layers =
-        (gen_layers (2 * (gate_count div nq)))
+        (gen_layers (2 * (gate_count div nq) + 1))
     in
       {qset = qs, layers = layers, idx = idx, size = ref (Seq.length gseq)}
     end
@@ -306,14 +319,6 @@ struct
       in
         Seq.nth (Seq.tabulate get_act_qubit nq)
       end
-
-  fun load_circuit f =
-    let
-      val (_, circuit) = ParseQASM.readQASM f
-      fun to_circ_gate g = P (g)
-    in
-      Seq.map (to_circ_gate o GateSet.labelToGate) circuit
-    end
 
   fun num_layers {qset, layers, idx, ...} = Seq.length layers
 
@@ -476,4 +481,15 @@ struct
     in
       {qset = q2, layers = layers, idx = idx2, size = ref (!s1 + !s2)}
     end
+
+  fun reindex (c' : raw_circuit, c : circuit) =
+    let
+      val get_idx = (fn x => Qubit.to_int x)
+      val get_qubit = idx_inverse c
+      val qrelabel = (get_qubit o get_idx)
+      val c'' = from_raw_sequence_with_relabel (c', qrelabel)
+    in
+      c''
+    end
+
 end

@@ -12,4 +12,5 @@ sig
   val support : circuit -> QSet.t
   val gate : circuit -> layer -> Qubit.qubit -> gate
   val optimize : circuit -> circuit
+  val size : circuit -> int
 end

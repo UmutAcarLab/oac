@@ -14,9 +14,13 @@ sig
   val from_raw_sequence : raw_circuit -> circuit
   val from_raw_sequence_with_set : QSet.t * gate Seq.t -> circuit
   val from_raw_sequence_with_relabel : raw_circuit * (Qubit.qubit -> Qubit.qubit) -> circuit
+  val from_qasm : char Seq.t -> raw_circuit
+  val raw_to_qasm : raw_circuit -> string
 
   val cprint : circuit -> unit
   val cstring : circuit -> string -> string
+  val to_qasm : circuit -> string
+
   val eval_circuit : circuit -> ComplexMatrix.t
   val support : circuit -> QSet.t
 
@@ -33,6 +37,7 @@ sig
   val gate : circuit -> layer -> Qubit.qubit -> gate
   val is_id : gate -> bool
   val id_gate : Qubit.qubit -> gate
+  val gate_str : gate -> string
   val gate_support : gate -> Qubit.qubit List.list
   val gate_support_unordered : gate -> QSet.t
 
@@ -41,5 +46,7 @@ sig
 
 
   val raw_str : raw_circuit -> string -> string
+  (* relabels the qubits of the raw_circuit to the qubits in the second circuit.*)
+  val reindex : raw_circuit * circuit -> circuit
 end
 

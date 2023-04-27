@@ -6,7 +6,7 @@ sig
   val * : t * t -> t
   val - : (t * t) -> t
   val tensor : (t * t) -> t
-  val compare : t * t -> order
+  val equal : t * t -> bool
   val toDiag : t  -> t
   val trans : t  -> t
   val det : t -> Complex.complex

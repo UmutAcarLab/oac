@@ -1,4 +1,3 @@
-
 functor BlackBoxOptFun (structure Circuit : CIRCUIT) : BLACK_BOX_OPT =
 struct
 
@@ -8,6 +7,8 @@ struct
   exception Unimplemented
   structure Circuit = Circuit
   structure CLA = CommandLineArgs
+
+  fun preprocess c = c
 
   fun phase_canonical m =
     let
@@ -45,7 +46,7 @@ struct
         val ss = Seq.map form_tuple ssrep
         val ml = DelayedSeq.reduce Int.max 0 (DelayedSeq.map (fn p => Seq.length p) (DelayedSeq.fromArraySeq ssrep))
       in
-        (ss, ml)
+        (ss, Int.max(ml, 2))
       end
 
     fun convert (f : string, f' : string) : unit = raise Unimplemented
@@ -130,7 +131,7 @@ struct
         in
           Real.round sum_mod
         end
-      fun eq (m1, m2) = ComplexMatrix.compare (m1, m2) = EQUAL
+      fun eq (m1, m2) = ComplexMatrix.equal (m1, m2)
     in
       Hashtable.make ({hash = hash, eq = eq, capacity = capacity})
     end
@@ -138,9 +139,9 @@ struct
   fun load f nq =
     let
       val (ss, ml) = QuartzInterface.load (f, nq)
-      val sz = Real.toInt(IEEEReal.TO_NEAREST) (Math.pow(2.0, Real.fromInt(nq)))
+      val sz = Real.toInt (IEEEReal.TO_NEAREST) (Math.pow(2.0, Real.fromInt(nq)))
       val ht = init_hash_table (sz, 5 * (Seq.length ss))
-      val _ = Seq.foreach ss (fn (_, (m, c)) => Hashtable.insert ht (m, c))
+      val _ = Seq.foreach ss (fn (_, (m, c)) => (Hashtable.insert ht (m, c)))
     in
       {max_size = ml, cstore = ht}
     end
@@ -190,16 +191,6 @@ struct
     if (x <= max_breadth opt) then #max_size (Seq.nth opt (x - 1))
     else 0
 
-  fun reindex (c' : Circuit.raw_circuit, c : Circuit.circuit) =
-    let
-      val get_idx = (fn x => Qubit.to_int x)
-      val get_qubit = Circuit.idx_inverse c
-      val qrelabel = (get_qubit o get_idx)
-      val c'' = Circuit.from_raw_sequence_with_relabel (c', qrelabel)
-    in
-      c''
-    end
-
   fun find ({max_size, cstore} : collection) (m, c) =
     let
       val m' = phase_canonical m
@@ -209,7 +200,7 @@ struct
         NONE => NONE
       | SOME c' =>
           if Circuit.size_raw c' >= Circuit.size c then NONE
-          else SOME (reindex (c', c))
+          else SOME (Circuit.reindex (c', c))
     end
 
   fun best_equivalent opt c =
