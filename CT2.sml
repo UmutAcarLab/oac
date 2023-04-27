@@ -3,6 +3,7 @@ structure CLA = CommandLineArgs
 structure TwoGateSet : GATE_SET =
 struct
   exception InvalidGate
+  exception Unimplemented
   open Math
 
   type qubit = Qubit.qubit
@@ -15,6 +16,8 @@ struct
   | SD of qubit
   | TD of qubit
   | CNOT of qubit * qubit
+  | CCZ of qubit * qubit * qubit
+  | RZ of (string * qubit)
 
   fun map_support g fidx =
     case g of
@@ -25,6 +28,8 @@ struct
     | SD(x) => SD (fidx x)
     | TD(x) => TD (fidx x)
     | CNOT (x, y) => CNOT (fidx x, fidx y)
+    | CCZ (x, y, z) => CCZ (fidx x, fidx y, fidx z)
+    | RZ (s, x) => RZ (s, fidx x)
 
   fun support g =
     case g of
@@ -35,6 +40,8 @@ struct
     | SD(x) => [x]
     | TD(x) => [x]
     | CNOT (x, y) => [x, y]
+    | CCZ (x, y, z) => [x, y, z]
+    | RZ(_, x) => [x]
 
   fun labelToGate g =
     case g of
@@ -45,17 +52,23 @@ struct
     | ("sdg", [x]) => SD (x)
     | ("tdg", [x]) => TD (x)
     | ("cx", [x, y]) => CNOT (x, y)
+    | ("ccz", [x, y, z]) => CCZ (x, y, z)
+    | (rz_some, [x]) =>
+      if (String.isPrefix "rz" rz_some) then (print ("str is " ^ rz_some ^ "\n"); RZ(rz_some, x))
+      else labelToGate (rz_some, [x, x])
     | _ => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
 
   fun str g =
     case g of
-      H(x) => "h (" ^ (Qubit.str x) ^ ")"
-    | S(x) => "s (" ^ (Qubit.str x) ^ ")"
-    | T(x) => "t (" ^ (Qubit.str x) ^ ")"
-    | HD(x) => "hdg (" ^ (Qubit.str x) ^ ")"
-    | SD(x) => "sdg (" ^ (Qubit.str x) ^ ")"
-    | TD(x) => "tdg (" ^ (Qubit.str x) ^ ")"
-    | CNOT(x, y) => "cx (" ^ (Qubit.str x) ^ ", " ^ (Qubit.str y) ^ ")"
+      H(x) => "h q[" ^ (Qubit.str x) ^ "]"
+    | S(x) => "s q[" ^ (Qubit.str x) ^ "]"
+    | T(x) => "t q[" ^ (Qubit.str x) ^ "]"
+    | HD(x) => "hdg q[" ^ (Qubit.str x) ^ "]"
+    | SD(x) => "sdg q[" ^ (Qubit.str x) ^ "]"
+    | TD(x) => "tdg q[" ^ (Qubit.str x) ^ "]"
+    | CNOT(x, y) => "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]"
+    | CCZ(x, y, z) => "ccz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
+    | RZ(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
 
   fun inverse g =
     case g of
@@ -66,6 +79,8 @@ struct
     | SD(x) => S(x)
     | TD(x) => T(x)
     | CNOT _ => g
+    | CCZ _ => g
+    | RZ _ => raise Unimplemented
 
   val num_gates = 7
 
@@ -81,6 +96,15 @@ struct
       val sdm = ComplexMatrix.dagger sm
       val tdm = ComplexMatrix.dagger tm
       val cnotm = ComplexMatrix.fromList [[one, z, z, z], [z, one, z, z], [z, z, z, one], [z, z, one, z]]
+      val cczm =
+        let
+          fun eij (i, j) =
+            if i <> j then z
+            else if i < 7 then one
+            else (~1.0, 0.0)
+        in
+          ComplexMatrix.tabulate (8, 8) eij
+        end
     in
       fn g =>
         case g of
@@ -91,6 +115,8 @@ struct
         | SD _ => sdm
         | TD _ => tdm
         | CNOT _ => cnotm
+        | CCZ _ => cczm
+        | RZ _ => raise Unimplemented
     end
 
 end
@@ -101,9 +127,11 @@ val f = CLA.parseString "circuit" "test-small.qasm"
 val c = TwoOPT.from_qasm f
 val _ = TwoOPT.cprint c
 (* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
-val c' = TwoOPT.optimize c
+val c' = Benchmark.run "optimizing" (fn _ => TwoOPT.optimize c)
 
-val _ = print "before circuit\n"
-val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c))
-val _ = print "after circuit\n"
-val _ = print (ComplexMatrix.str (TwoOPT.eval_circuit c'))
+(* val _ = print "before circuit\n" *)
+val _ = print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"))
+val _ = print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n"))
+(* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
+(* val _ = print "after circuit\n" *)
+(* val _ = print (ComplexMatrix.str (TwoOPT.eval_circuit c')) *)
