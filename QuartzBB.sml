@@ -11,7 +11,7 @@ val ffi_load_eqset = _import "load_eqset" : string *  MLton.Pointer.t ref -> Wor
 fun load_eqset () =
   let
     val eq_ptr = ref (MLton.Pointer.null)
-    val sz = ffi_load_eqset ("../Nam_6_3_complete_ECC_set.json", eq_ptr)
+    val sz = ffi_load_eqset ("Nam_6_3_complete_ECC_set.json", eq_ptr)
     val _ = print ("size obtained  = " ^ (Int.toString (Word64.toInt sz)) ^ "\n")
   in
     (!eq_ptr, sz)
