@@ -12,6 +12,8 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
 
     fun layer {qset, layers, idx} l = Seq.nth layers l
     fun gate (c as {qset, layers, idx}) (l, q) = Seq.nth (layer c l) (QMap.lookup (idx, q))
+    fun num_layers (c as {qset, layers, idx}) = Seq.length layers
+
     fun closed_support (c : circuit) (l, q) =
       let
         val (supp, g) = (gate c (l, q))
@@ -38,16 +40,37 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
     fun filter_and_map_idx (p: 'a -> bool) (f: int * 'a -> 'b) (s: 'a Seq.t): 'b Seq.t =
      ArraySlice.full (SeqBasis.filter 10000 (0, Seq.length s) (fn i => f (i, Seq.nth s i)) (p o Seq.nth s))
 
-    fun gen_max_subckt (c : circuit) (qs : QSet.t) =
+    fun subckt_feasible (c : circuit) (qs : QSet.t) =
       let
         val {qset, layers, idx} = c
         val _ = if QSet.is_subset (qs, qset) then () else raise InvalidQSet
+        val nl = Seq.length layers
+        fun check_qubit (lidx, q) =
+          if lidx = nl then false
+          else let
+            val (supp, g) = gate (c) (lidx, q)
+          in
+            if Circuit.is_id g then check_qubit (lidx + 1, q)
+            else if QSet.is_subset (supp, qs) then true
+              (* ((print ("witness for qubit" ^ (Qubit.str q) ^ ("is gate " ^ (Circuit.gate_str g)) ^ " and are subsets = " ^ (QSet.str supp) ^ " " ^ (QSet.str qs) ^ "\n")); true) *)
+            else false
+          end
+        val f = QSet.is_subset (qs, qset)
+        val f' = f andalso (QSet.fold (fn (q, acc) => acc andalso check_qubit (0, q)) true qs)
+      in
+        f'
+      end
+
+    (* TODO: stop early when you know qs can't be included *)
+    fun gen_max_subckt (c : circuit) (qs : QSet.t) =
+      if not (subckt_feasible c qs) then NONE
+      else let
+        val {qset, layers, idx} = c
 
         val (qubits, idx') = gen_idx qs
         val num_qubits = (Seq.length qubits)
         val num_layers = Seq.length layers
         val frontier = Seq.tabulate (fn i => A) num_qubits
-
         exception LoopInvariant
         (* ll: list of layers,  lidx : next layer idx, sz : number of non_id gates, av : active qubits *)
         fun loop (ll, lidx) sz (aq : QSet.t) =
@@ -104,7 +127,7 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
         val gate_len = Seq.map (fr_to_idx num_layers) frontier
         val c' = {qset = qs, layers = layers, idx = idx'}
       in
-        (c', sz, fn q => Seq.nth gate_len (QMap.lookup (idx', q)))
+        SOME (c', sz, fn q => Seq.nth gate_len (QMap.lookup (idx', q)))
       end
 
     fun parse (c : Circuit.circuit) max_size =
@@ -133,11 +156,19 @@ functor SupportClosedFun (structure Circuit : CIRCUIT) =
                       if in_scope then gateqidx layer qidx
                       else (Circuit.id_gate (act_qubit qidx))
                     (* val _ = print ("parse layer = " ^ (Int.toString i) ^ " qidx = " ^ (Int.toString qidx) ^ "\n") *)
-                    val supp =
+                    val (supp : QSet.t) =
                       case ll of
                         nil => Circuit.gate_support_unordered g
-                      | l::_ => QSet.union (Circuit.gate_support_unordered g, #1 (Seq.nth l qidx))
-                    (* val _ = print ("parse supp = " ^ (QSet.str supp)) *)
+                      | l::_ =>
+                        let
+                          val curr_supp = (Circuit.gate_support_unordered g)
+                          fun past_suppq q = #1 (Seq.nth l (QMap.lookup (idx, q)))
+                          val past_supp = QSet.fold (fn (q, qss) => QSet.union (past_suppq q, qss)) QSet.empty curr_supp
+                        in
+                          QSet.union (curr_supp, past_supp)
+                        end
+                    (* val _ = print ("i = " ^ (Int.toString i) ^ "\n") *)
+                    (* val _ = print ("parse gate = " ^ (Circuit.gate_str g) ^ "parse supp = " ^ (QSet.str supp) ^ "\n") *)
                   in
                     (supp, g)
                   end
