@@ -4,8 +4,8 @@ DEFAULT_FLAGS?=-default-type int64 -default-type word64
 
 MPL_FLAGS?=-detect-entanglement true -disable-pass splitTypes1 -disable-pass splitTypes2
 
-FFI_FLAGS?=-default-ann 'allowFFI true' -export-header export.h -link-opt '-lgsl -lgslcblas -lm -lblas -llapack -llapacke'
-FFI_FILES=lapack-groupfactor.c
+FFI_FLAGS?=-default-ann 'allowFFI true' -export-header export.h -link-opt 'quartz.o -lquartz_runtime -lstdc++'
+FFI_FILES=lib/quartz/quartz_api.c
 
 MPL=/home/jatina/entangle-allow-mpl/mpl/build/bin/mpl
 
@@ -21,12 +21,19 @@ clean:
 
 phony:
 
+
+%.mlton.quartz.bin: phony
+	@mkdir -p bin
+	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
+	$(MLTON) -mlb-path-var 'COMPAT mlton' $(FFI_FLAGS) -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb $(FFI_FILES)
+
 %.mlton.bin: phony
 	@mkdir -p bin
 	$(MLTON) -mlb-path-var 'COMPAT mlton' -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
 
-%.ffi.bin: phony
+%.mpl.quartz.bin: phony
 	@mkdir -p bin
+	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
 	$(MPL) -mlb-path-var 'COMPAT mpl' $(FFI_FLAGS) $(DEFAULT_FLAGS) $(MPL_FLAGS) -output bin/$@ $*.mlb $(FFI_FILES)
 
 %.bin: phony
