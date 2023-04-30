@@ -11,8 +11,8 @@ val ffi_load_eqset = _import "load_eqset" : string *  MLton.Pointer.t ref -> Wor
 fun load_eqset () =
   let
     val eq_ptr = ref (MLton.Pointer.null)
-    val sz = ffi_load_eqset ("Nam_6_3_complete_ECC_set.json", eq_ptr)
-    val _ = print ("size obtained  = " ^ (Int.toString (Word64.toInt sz)) ^ "\n")
+    val eq_file = CommandLineArgs.parseString "eqset" "Nam_4_3_complete_ECC_set.json"
+    val sz = ffi_load_eqset (eq_file, eq_ptr)
   in
     (!eq_ptr, sz)
   end
@@ -23,8 +23,10 @@ fun call_quartz f cqasm =
     fun loop_buff_size sz =
       let
         val buffer = ForkJoin.alloc sz
-        val sz' = Int32.toInt (f (buffer, sz))
-        val _ = print ("int from quartz" ^ (Int.toString sz') ^ "\n")
+        val _ = print ("calling quartz\n")
+        val tmp = f (buffer, sz)
+        val _ = print ("quartz returned\n")
+        val sz' = Int32.toInt (tmp)
       in
         if sz' = ~1 then NONE
         else if sz' < 0 then loop_buff_size (~sz')
@@ -42,10 +44,8 @@ fun cstr s = s ^ (Char.toString (#"0"))
 
 fun preprocess (c : Circuit.raw_circuit) =
   let
+    val _ = print ("preprocessing\n")
     val cq = (Circuit.raw_to_qasm c) ^ (String.str (Char.chr 0))
-    val _ = print "calling preprecss"
-    val _ = print ("len of str = " ^ (Int.toString (String.size cq)) ^ "\n")
-
     val cqasm = call_quartz (fn (b, bsize) => ffi_preprocess (cq, b, bsize)) cq
   in
     case cqasm of
@@ -62,7 +62,7 @@ fun best_equivalent (t, tsz) c =
       NONE => NONE
     | SOME charseq =>
         let
-          val _ = print ("back from quartz = " ^ (seq_to_str charseq))
+          (* val _ = print ("back from quartz = " ^ (seq_to_str charseq)) *)
           val (c' : Circuit.raw_circuit) = Circuit.from_qasm (charseq)
         in
           if (Circuit.size_raw c' >= Circuit.size c) then NONE

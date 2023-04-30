@@ -211,19 +211,18 @@ struct
     end
 
 
-  fun prefix_opt_vertical bbopt (c : Circuit.circuit) =
+  fun vertical_opt bbopt prefix_sz (c : Circuit.circuit) =
     let
-      val msize = BlackBoxOpt.max_size bbopt 1
       fun loop (c, opt) =
         let
           val nl = Circuit.num_layers c
-          val cut = Int.min (msize, nl)
+          val cut = Int.min (prefix_sz, nl)
           val (subckt, ctxt) = Circuit.split c cut
         in
           case (BlackBoxOpt.best_equivalent bbopt subckt, cut = nl) of
             (NONE, _) => (c, opt)
-          | (SOME c', true) => (c', true)
-          | (SOME c', false) => loop (Circuit.prepend (c', ctxt), true)
+          | (SOME c', _) => (Circuit.prepend (c', ctxt), true)
+          (* | (SOME c', false) => loop (Circuit.prepend (c', ctxt), true) *)
         end
     in
       loop (c, false)
@@ -244,18 +243,18 @@ struct
 
   fun meld bbopt optfun c1 c2 =
     let
-      val stop_cnt = BlackBoxOpt.max_size bbopt 1
+      val bbsz = BlackBoxOpt.max_size bbopt 1
       fun meld_rec cnt nl c1 c2 =
         (* TODO: stop early once there are no new circuits, for example,
          * if you can't optimize after d peels, stop
         *)
         if nl = 0 then c2
-        else if cnt = stop_cnt then Circuit.prepend(c1, c2)
+        else if cnt = bbsz then Circuit.prepend(c1, c2)
         else
           let
             val (c1, peel) = Circuit.split c1 (nl - 1)
             val c2' = Circuit.prepend (peel, c2)
-            val (c2'_opt, change) = (optfun bbopt c2')
+            val (c2'_opt, change) = (optfun bbopt bbsz c2')
             val cnt' = if change then 0 else cnt + 1
           in
             meld_rec cnt' (nl - 1) c1 c2'_opt
@@ -265,12 +264,42 @@ struct
       c
     end
 
+  fun meld_big bbopt optfun c1 c2 =
+    let
+      val bbsz = BlackBoxOpt.max_size bbopt 1
+      val grain = CommandLineArgs.parseInt "grain" 4
+      val nl1 = (Circuit.num_layers c1)
+      val ((c1ctxt, c1tail), sz) =
+        if 2 * nl1 < grain then (Circuit.splitEnd c1 nl1, nl1)
+        else (Circuit.splitEnd c1 (grain div 2), grain div 2)
+      val c2' = Circuit.prepend (c1tail, c2)
+      val (c2'_opt, _) = optfun bbopt grain c2'
+      (* fun meld_rec cnt nl c1 c2 =
+        (* TODO: stop early once there are no new circuits, for example,
+         * if you can't optimize after d peels, stop
+        *)
+        if nl = 0 then c2
+        else if cnt = bbsz then Circuit.prepend(c1, c2)
+        else
+          let
+            val (c1, peel) = Circuit.split c1 (nl - 1)
+            val c2' = Circuit.prepend (peel, c2)
+            val (c2'_opt, change) = (optfun bbopt bbsz c2')
+            val cnt' = if change then 0 else cnt + 1
+          in
+            meld_rec cnt' (nl - 1) c1 c2'_opt
+          end *)
+      (* val c = meld_rec 0 (Circuit.num_layers c1) c1 c2 *)
+    in
+      Circuit.prepend(c1ctxt, c2'_opt)
+    end
+
   fun simple_opt bbopt optfun c =
     let
-      val gran = CommandLineArgs.parseInt "gran" 4
-      val bbsz = (BlackBoxOpt.max_size bbopt 1)
+      val grain = CommandLineArgs.parseInt "grain" 4
+      (* val bbsz = (BlackBoxOpt.max_size bbopt 1) *)
 
-      fun loop_seq c =
+      (* fun loop_seq c =
         let
           fun peel_and_append nl1 c1 c2 =
             if nl1 = 0 then c2
@@ -286,20 +315,18 @@ struct
           val (i2', _) = optfun bbopt i2
         in
           peel_and_append (Circuit.num_layers i1) i1 i2'
-        end
+        end *)
 
       fun loop c =
         let
           val num_layers = Circuit.num_layers c
         in
-          if num_layers < bbsz then #1 (optfun bbopt c)
-          else if num_layers < gran * bbsz then loop_seq c
+          if num_layers < grain then #1 (optfun bbopt num_layers c)
           else let
             val (c1, c2) = Circuit.split c (num_layers div 2)
-            val pa = num_layers < bbsz * gran
             val (opc1, opc2) = ForkJoin.par (fn _ => loop c1, fn _ => loop c2)
           in
-            (meld bbopt optfun opc1 opc2)
+            (meld_big bbopt optfun opc1 opc2)
             (* Circuit.prepend (opc1, opc2) *)
           end
         end
@@ -307,13 +334,25 @@ struct
       loop c
     end
 
-  fun optimize bbopt c =
+
+
+  (* fun opt_quartz_seq bbopt c =
     let
-      val c' = simple_opt bbopt prefix_opt_vertical c
-      val _  = (print "after all "; print(Circuit.to_qasm c'))
+      val peep_size = BlackBoxOpt.max_size bbopt 1
+      val window_size = CommandLineArgs.parseInt "grain" 4
+      fun optfun c =
+        case BlackBoxOpt.best_equivalent bbopt c of
+          (NONE, _) => (c, false)
+        |
+
+
+      val (c1, c2) = Circuit.split c (peep_size)
+      val c1'_opt =
     in
-      c'
-    end
+      body
+    end *)
+  fun optimize bbopt c = simple_opt bbopt vertical_opt c
+
 end
 
 (*
