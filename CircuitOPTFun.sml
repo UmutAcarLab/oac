@@ -18,4 +18,15 @@ struct
     end
 
   val optimize = MeldOpt.optimize bbopt
+
+  fun gen_bench () =
+    let
+      val (nq, raw_optc) = Circuit.from_qasm (ReadFile.contentsSeq "out_unopt.qasm")
+      val cseq = Seq.tabulate (fn i => raw_optc) (CommandLineArgs.parseInt "rep" 2)
+      val cred = Seq.flatten cseq
+    in
+      Circuit.dump (Circuit.from_raw_sequence (nq, cred)) "out.qasm"
+    end
+
+  (* val _ = gen_bench() *)
 end

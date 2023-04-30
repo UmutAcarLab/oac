@@ -13,4 +13,5 @@ sig
   val gate : circuit -> layer -> Qubit.qubit -> gate
   val optimize : circuit -> circuit
   val size : circuit -> int
+  val dump : circuit -> string -> unit
 end

@@ -244,6 +244,15 @@ struct
   fun cstring (c : circuit) sep = raw_str (to_raw_sequence c) sep
   fun to_qasm (c : circuit) = raw_to_qasm (to_raw_sequence c)
 
+  fun dump (c:circuit) (f) =
+    let
+      open Posix.FileSys
+      val file =  createf (f, O_WRONLY, O.fromWord 0w0, S.irwxu)
+      val s =  to_qasm c
+      val s' = Word8Vector.tabulate (String.size s, fn i => Word8.fromInt (Char.ord (String.sub (s,i))))
+    in
+      (Posix.IO.writeVec (file, Word8VectorSlice.full s'); ())
+    end
 
   fun from_raw_sequence_with_set (qs : QSet.t, (gseq: gate Seq.t)) =
     let
@@ -445,6 +454,13 @@ struct
       (c1, c2)
     end
 
+  fun splitEnd c n =
+    let
+      val nl = num_layers c
+    in
+      if nl < n orelse n < 0 then raise InvalidIdx
+      else split c (nl - n)
+    end
 
   exception PrependIncompat
   fun prepend (c1 : circuit, c2: circuit) =

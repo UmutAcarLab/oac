@@ -30,6 +30,7 @@ sig
   val num_qubits : circuit -> int
 
   val split : circuit -> int -> (circuit * circuit)
+  val splitEnd : circuit -> int -> (circuit * circuit)
   val prepend : circuit * circuit -> circuit
 
   val idx_inverse : circuit -> (int -> Qubit.qubit)
@@ -48,5 +49,7 @@ sig
   val raw_str : raw_circuit -> string -> string
   (* relabels the qubits of the raw_circuit to the qubits in the second circuit.*)
   val reindex : raw_circuit * circuit -> circuit
+
+  val dump : circuit -> string -> unit
 end
 

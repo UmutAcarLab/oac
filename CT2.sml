@@ -54,7 +54,7 @@ struct
     | ("cx", [x, y]) => CNOT (x, y)
     | ("ccz", [x, y, z]) => CCZ (x, y, z)
     | (rz_some, [x]) =>
-      if (String.isPrefix "rz" rz_some) then (print ("str is " ^ rz_some ^ "\n"); RZ(rz_some, x))
+      if (String.isPrefix "rz" rz_some) then RZ(rz_some, x)
       else labelToGate (rz_some, [x, x])
     | _ => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
 
@@ -122,16 +122,40 @@ struct
 end
 
 
-structure TwoOPT = CircuitOPT (structure GateSet = TwoGateSet)
-val f = CLA.parseString "circuit" "test-small.qasm"
-val c = TwoOPT.from_qasm f
-val _ = TwoOPT.cprint c
-(* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
-val c' = Benchmark.run "optimizing" (fn _ => TwoOPT.optimize c)
+structure Experiment =
+struct
+  structure TwoOPT = CircuitOPT (structure GateSet = TwoGateSet)
+  val cqasm = CLA.parseString "circuit" "test-small.qasm"
+  val print_out = CLA.isArg "outfile"
+  val outfile = CLA.parseString "outfile" "out.qasm"
 
-(* val _ = print "before circuit\n" *)
-val _ = print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"))
-val _ = print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n"))
+  fun optimize () =
+    let
+      val c = TwoOPT.from_qasm cqasm
+      val c' = Benchmark.run "optimizing" (fn _ => TwoOPT.optimize c)
+      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
+      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
+    in
+      if print_out then TwoOPT.dump c' outfile
+      else ()
+    end
+
+  fun preprocess () =
+    let
+      val c = TwoOPT.from_qasm cqasm
+    in
+      if print_out then TwoOPT.dump c outfile
+      else ()
+    end
+
+end
+
+
+val _ = if CLA.isArg "preprocess" then Experiment.preprocess ()
+        else Experiment.optimize()
+
+(* val _ = TwoOPT.cprint c *)
+(* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
 (* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
 (* val _ = print "after circuit\n" *)
 (* val _ = print (ComplexMatrix.str (TwoOPT.eval_circuit c')) *)
