@@ -4,6 +4,7 @@ sig
   structure Circuit : CIRCUIT
   structure BlackBoxOpt : BLACK_BOX_OPT
   val optimize : BlackBoxOpt.t -> Circuit.circuit -> Circuit.circuit
+  val preprocess : BlackBoxOpt.t -> Circuit.circuit -> Circuit.circuit
 end
 
 functor MeldOptFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
@@ -295,7 +296,7 @@ struct
       Circuit.prepend(c1ctxt, c2'_opt)
     end
 
-  fun simple_opt bbopt optfun c =
+  fun simple_opt bbopt need_meld optfun c =
     let
       val grain = CommandLineArgs.parseInt "grain" 4
       (* val bbsz = (BlackBoxOpt.max_size bbopt 1) *)
@@ -327,7 +328,8 @@ struct
             val (c1, c2) = Circuit.split c (num_layers div 2)
             val (opc1, opc2) = ForkJoin.par (fn _ => loop c1, fn _ => loop c2)
           in
-            (meld_big bbopt optfun opc1 opc2)
+            if need_meld then (meld_big bbopt optfun opc1 opc2)
+            else Circuit.prepend (opc1, opc2)
             (* Circuit.prepend (opc1, opc2) *)
           end
         end
@@ -352,8 +354,18 @@ struct
     in
       body
     end *)
-  fun optimize bbopt c = (print ("num layers = " ^ (Int.toString (Circuit.num_layers c) ^ "\n")); simple_opt bbopt vertical_opt c)
 
+  fun vpreprocess bbopt prefix_sz (c : Circuit.circuit) =
+    (Circuit.from_raw_sequence (BlackBoxOpt.preprocess (Circuit.to_raw_sequence c)), true)
+
+  fun optimize bbopt c = (print ("num layers = " ^ (Int.toString (Circuit.num_layers c) ^ "\n")); simple_opt bbopt true vertical_opt c)
+  fun preprocess bbopt c =
+    let
+      val f = vpreprocess
+    in
+      print ("num layers = " ^ (Int.toString (Circuit.num_layers c) ^ "\n"));
+      simple_opt bbopt false vpreprocess c
+    end
 end
 
 (*

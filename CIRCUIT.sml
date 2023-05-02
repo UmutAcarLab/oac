@@ -20,6 +20,7 @@ sig
   val cprint : circuit -> unit
   val cstring : circuit -> string -> string
   val to_qasm : circuit -> string
+  val to_raw_sequence : circuit -> raw_circuit
 
   val eval_circuit : circuit -> ComplexMatrix.t
   val support : circuit -> QSet.t

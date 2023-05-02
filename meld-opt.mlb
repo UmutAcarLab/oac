@@ -4,3 +4,4 @@ BLACK_BOX_OPT.sml
 TreeFun.sml
 SupportClosedFun.sml
 MeldOpt.sml
+VerticalMeld.sml

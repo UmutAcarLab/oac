@@ -4,7 +4,7 @@ struct
   structure Circuit = CircuitFun (structure GateSet = GateSet)
 
   structure BlackBoxOpt = QuartzBB (structure Circuit = Circuit)
-  structure MeldOpt = MeldOptFun (structure BlackBoxOpt = BlackBoxOpt)
+  structure MeldOpt = VerticalMeldFun (structure BlackBoxOpt = BlackBoxOpt)
 
   open Circuit
   val bbopt = BlackBoxOpt.init ()
@@ -12,11 +12,12 @@ struct
   fun from_qasm f =
     let
       val rawc = Circuit.from_qasm (ReadFile.contentsSeq f)
-      val rawc' = BlackBoxOpt.preprocess rawc
     in
-      Circuit.from_raw_sequence rawc'
+      Circuit.from_raw_sequence rawc
     end
 
+
+  val preprocess = MeldOpt.preprocess bbopt
   val optimize = MeldOpt.optimize bbopt
 
   fun gen_bench () =
