@@ -269,11 +269,12 @@ struct
       val bbsz = BlackBoxOpt.max_size bbopt 1
       val grain = CommandLineArgs.parseInt "grain" 4
       val nl1 = (Circuit.num_layers c1)
+      val hf = grain div 2
       val ((c1ctxt, c1tail), sz) =
-        if 2 * nl1 < grain then (Circuit.splitEnd c1 nl1, nl1)
-        else (Circuit.splitEnd c1 (grain div 2), grain div 2)
+        if nl1 < hf then (Circuit.splitEnd c1 nl1, nl1)
+        else (Circuit.splitEnd c1 (hf), hf)
       val c2' = Circuit.prepend (c1tail, c2)
-      val (c2'_opt, _) = optfun bbopt grain c2'
+      val (c2'_opt, _) = optfun bbopt (2*hf) c2'
       (* fun meld_rec cnt nl c1 c2 =
         (* TODO: stop early once there are no new circuits, for example,
          * if you can't optimize after d peels, stop
@@ -351,7 +352,7 @@ struct
     in
       body
     end *)
-  fun optimize bbopt c = simple_opt bbopt vertical_opt c
+  fun optimize bbopt c = (print ("num layers = " ^ (Int.toString (Circuit.num_layers c) ^ "\n")); simple_opt bbopt vertical_opt c)
 
 end
 

@@ -8,6 +8,36 @@ struct
 
   type qubit = Qubit.qubit
 
+  structure Unint =
+  struct
+    datatype t =
+      RZ of (string * qubit)
+    | RX of (string * qubit)
+
+    fun map_support u fidx =
+      case u of
+        RZ (s, x) => RZ (s, fidx x)
+      | RX (s, x) => RX (s, fidx x)
+
+    fun support u =
+      case u of
+        RZ(_, x) => [x]
+      | RX(_, x) => [x]
+
+    fun labelToGate g =
+      case g of
+        (r_some, [x]) =>
+          if (String.isPrefix "rz" r_some) then SOME (RZ(r_some, x))
+          else if (String.isPrefix "rx" r_some) then SOME (RX(r_some, x))
+          else NONE
+      | _ => NONE
+    fun str u =
+      case u of
+        RZ(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
+      | RX(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
+  end
+
+
   datatype gate =
     H of qubit
   | S of qubit
@@ -17,7 +47,9 @@ struct
   | TD of qubit
   | CNOT of qubit * qubit
   | CCZ of qubit * qubit * qubit
-  | RZ of (string * qubit)
+  | UNINT of Unint.t
+
+
 
   fun map_support g fidx =
     case g of
@@ -29,7 +61,7 @@ struct
     | TD(x) => TD (fidx x)
     | CNOT (x, y) => CNOT (fidx x, fidx y)
     | CCZ (x, y, z) => CCZ (fidx x, fidx y, fidx z)
-    | RZ (s, x) => RZ (s, fidx x)
+    | UNINT x => UNINT (Unint.map_support x fidx)
 
   fun support g =
     case g of
@@ -41,7 +73,7 @@ struct
     | TD(x) => [x]
     | CNOT (x, y) => [x, y]
     | CCZ (x, y, z) => [x, y, z]
-    | RZ(_, x) => [x]
+    | UNINT x => Unint.support x
 
   fun labelToGate g =
     case g of
@@ -53,10 +85,14 @@ struct
     | ("tdg", [x]) => TD (x)
     | ("cx", [x, y]) => CNOT (x, y)
     | ("ccz", [x, y, z]) => CCZ (x, y, z)
-    | (rz_some, [x]) =>
+    | x =>
+      case Unint.labelToGate x of
+        SOME y => UNINT (y)
+      | NONE => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
+(*
+    (rz_some, [x]) =>
       if (String.isPrefix "rz" rz_some) then RZ(rz_some, x)
-      else labelToGate (rz_some, [x, x])
-    | _ => (print (#1 g ^ " " ^ (Int.toString (List.length (#2 g))) ^ "\n"); raise InvalidGate)
+      else labelToGate (rz_some, [x, x]) *)
 
   fun str g =
     case g of
@@ -68,7 +104,7 @@ struct
     | TD(x) => "tdg q[" ^ (Qubit.str x) ^ "]"
     | CNOT(x, y) => "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]"
     | CCZ(x, y, z) => "ccz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
-    | RZ(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
+    | UNINT x => Unint.str x
 
   fun inverse g =
     case g of
@@ -80,7 +116,7 @@ struct
     | TD(x) => T(x)
     | CNOT _ => g
     | CCZ _ => g
-    | RZ _ => raise Unimplemented
+    | UNINT _ => raise Unimplemented
 
   val num_gates = 7
 
@@ -116,7 +152,7 @@ struct
         | TD _ => tdm
         | CNOT _ => cnotm
         | CCZ _ => cczm
-        | RZ _ => raise Unimplemented
+        | UNINT _ => raise Unimplemented
     end
 
 end
