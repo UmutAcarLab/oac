@@ -45,6 +45,7 @@ struct
   | HD of qubit
   | SD of qubit
   | TD of qubit
+  | X of qubit
   | CNOT of qubit * qubit
   | CCZ of qubit * qubit * qubit
   | UNINT of Unint.t
@@ -59,6 +60,7 @@ struct
     | HD(x) => HD (fidx x)
     | SD(x) => SD (fidx x)
     | TD(x) => TD (fidx x)
+    | X (x) => X (fidx x)
     | CNOT (x, y) => CNOT (fidx x, fidx y)
     | CCZ (x, y, z) => CCZ (fidx x, fidx y, fidx z)
     | UNINT x => UNINT (Unint.map_support x fidx)
@@ -71,6 +73,7 @@ struct
     | HD(x) => [x]
     | SD(x) => [x]
     | TD(x) => [x]
+    | X(x) => [x]
     | CNOT (x, y) => [x, y]
     | CCZ (x, y, z) => [x, y, z]
     | UNINT x => Unint.support x
@@ -83,6 +86,7 @@ struct
     | ("hdg", [x]) => HD (x)
     | ("sdg", [x]) => SD (x)
     | ("tdg", [x]) => TD (x)
+    | ("x", [x]) => X (x)
     | ("cx", [x, y]) => CNOT (x, y)
     | ("ccz", [x, y, z]) => CCZ (x, y, z)
     | x =>
@@ -102,6 +106,7 @@ struct
     | HD(x) => "hdg q[" ^ (Qubit.str x) ^ "]"
     | SD(x) => "sdg q[" ^ (Qubit.str x) ^ "]"
     | TD(x) => "tdg q[" ^ (Qubit.str x) ^ "]"
+    | X(x) => "x q[" ^ (Qubit.str x) ^ "]"
     | CNOT(x, y) => "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]"
     | CCZ(x, y, z) => "ccz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
     | UNINT x => Unint.str x
@@ -114,6 +119,7 @@ struct
     | HD(x) => H(x)
     | SD(x) => S(x)
     | TD(x) => T(x)
+    | X _ => g
     | CNOT _ => g
     | CCZ _ => g
     | UNINT _ => raise Unimplemented
@@ -131,6 +137,7 @@ struct
       val hdm = ComplexMatrix.dagger hm
       val sdm = ComplexMatrix.dagger sm
       val tdm = ComplexMatrix.dagger tm
+      val xm = ComplexMatrix.fromList[[z, one], [one, z]]
       val cnotm = ComplexMatrix.fromList [[one, z, z, z], [z, one, z, z], [z, z, z, one], [z, z, one, z]]
       val cczm =
         let
@@ -150,6 +157,7 @@ struct
         | HD _ => hdm
         | SD _ => sdm
         | TD _ => tdm
+        | X _ => xm
         | CNOT _ => cnotm
         | CCZ _ => cczm
         | UNINT _ => raise Unimplemented
@@ -164,10 +172,15 @@ struct
   val cqasm = CLA.parseString "circuit" "test-small.qasm"
   val print_out = CLA.isArg "outfile"
   val outfile = CLA.parseString "outfile" "out.qasm"
+  val no_preprocess = CLA.isArg "nopp"
 
   fun optimize () =
     let
-      val c = TwoOPT.from_qasm cqasm
+      val c =
+        let val nppc = (TwoOPT.from_qasm cqasm) in
+          if no_preprocess then nppc
+          else TwoOPT.preprocess nppc
+        end
       val c' = Benchmark.run "optimizing" (fn _ => TwoOPT.optimize c)
       val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
       print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
@@ -179,15 +192,16 @@ struct
   fun preprocess () =
     let
       val c = TwoOPT.from_qasm cqasm
+      val c' = TwoOPT.preprocess c
     in
-      if print_out then TwoOPT.dump c outfile
+      if print_out then TwoOPT.dump c' outfile
       else ()
     end
 
 end
 
 
-val _ = if CLA.isArg "preprocess" then Experiment.preprocess ()
+val _ = if CLA.isArg "pponly" then Experiment.preprocess ()
         else Experiment.optimize()
 
 (* val _ = TwoOPT.cprint c *)
