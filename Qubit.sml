@@ -6,12 +6,14 @@ sig
   val to_int : qubit -> int
   val from_int : int -> qubit
   val enumerate : int -> qubit Seq.t
+  val eq : qubit * qubit -> bool
 end
 
 structure Qubit :> QUBIT =
 struct
   type qubit = int
   val compare = Int.compare
+  fun eq (a, b) = (a = b)
   val str = Int.toString
   fun to_int x = x
   fun from_int x = x
