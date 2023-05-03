@@ -87,7 +87,7 @@ struct
     | ("sdg", [x]) => SD (x)
     | ("tdg", [x]) => TD (x)
     | ("x", [x]) => X (x)
-    | ("cx", [x, y]) => CNOT (x, y)
+    | ("cx", [x, y]) =>  (if (not (Qubit.eq (x, y))) then () else (print "x =y label\n";raise InvalidGate); CNOT (x, y))
     | ("ccz", [x, y, z]) => CCZ (x, y, z)
     | x =>
       case Unint.labelToGate x of
@@ -107,7 +107,8 @@ struct
     | SD(x) => "sdg q[" ^ (Qubit.str x) ^ "]"
     | TD(x) => "tdg q[" ^ (Qubit.str x) ^ "]"
     | X(x) => "x q[" ^ (Qubit.str x) ^ "]"
-    | CNOT(x, y) => "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]"
+    | CNOT(x, y) =>
+    (if (not (Qubit.eq (x, y))) then () else (print "x =y!!\n";raise InvalidGate); "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]")
     | CCZ(x, y, z) => "ccz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
     | UNINT x => Unint.str x
 
