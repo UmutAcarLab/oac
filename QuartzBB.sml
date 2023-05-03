@@ -1,7 +1,7 @@
 functor QuartzBB (structure Circuit : CIRCUIT) : BLACK_BOX_OPT =
 struct
 
-type t = (MLton.Pointer.t * Word64.word)
+type t = (MLton.Pointer.t * Word64.word) Seq.t
 structure Circuit = Circuit
 
 val ffi_optimize = _import "opt_circuit" : string * char array * int * MLton.Pointer.t -> Int32.int;
@@ -18,6 +18,7 @@ fun load_eqset () =
     (!eq_ptr, sz)
   end
 
+val P = MLton.Parallel.numberOfProcessors
 
 fun call_quartz f cqasm =
   let
@@ -38,16 +39,27 @@ fun call_quartz f cqasm =
     loop_buff_size (2 * (String.size cqasm))
   end
 
-fun init () = load_eqset ()
+fun init () = Seq.tabulate (fn i => load_eqset ()) P
 
 fun seq_to_str s = CharVector.tabulate (Seq.length s, (fn i => Seq.nth s i))
 
 fun cstr s = s ^ (Char.toString (#"0"))
 
+exception InvalidPreprocess
+
+fun check_qasm cqasm = ()
+  (* let
+    val _ = Circuit.from_qasm (Seq.tabulate (fn i => String.sub(cqasm, i)) (String.size cqasm - 1))
+  in
+    ()
+  end *)
+
+
 fun preprocess (c : Circuit.raw_circuit) =
   let
-    val _ = print ("preprocessing\n")
+    val _ = print ("preprocessing")
     val cq = (Circuit.raw_to_qasm c) ^ (String.str (Char.chr 0))
+    val _ = check_qasm cq
     val cqasm = call_quartz (fn (b, bsize) => ffi_preprocess (cq, b, bsize)) cq
   in
     case cqasm of
@@ -55,10 +67,14 @@ fun preprocess (c : Circuit.raw_circuit) =
     | SOME charseq => Circuit.from_qasm (charseq)
   end
 
-fun best_equivalent (t, tsz) c =
+
+fun best_equivalent st c =
   let
     val cqasm = (Circuit.to_qasm c) ^ (String.str (Char.chr 0))
-    val cqasm' = call_quartz (fn (b, bsize) => ffi_optimize (cqasm, b, bsize, t, tsz)) cqasm
+    val pid =  MLton.Parallel.processorNumber ()
+    val (t, tsz) = Seq.nth st pid
+    val _ = check_qasm cqasm
+    val cqasm' = call_quartz (fn (b, bsize) => ffi_optimize (cqasm, b, bsize, t)) cqasm
   in
     case cqasm' of
       NONE => NONE
