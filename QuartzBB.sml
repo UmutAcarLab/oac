@@ -44,6 +44,7 @@ fun seq_to_str s = CharVector.tabulate (Seq.length s, (fn i => Seq.nth s i))
 
 fun cstr s = s ^ (Char.toString (#"0"))
 
+exception InvalidPreprocess
 fun preprocess (c : Circuit.raw_circuit) =
   let
     val _ = print ("preprocessing\n")
@@ -58,7 +59,7 @@ fun preprocess (c : Circuit.raw_circuit) =
 fun best_equivalent (t, tsz) c =
   let
     val cqasm = (Circuit.to_qasm c) ^ (String.str (Char.chr 0))
-    val cqasm' = call_quartz (fn (b, bsize) => ffi_optimize (cqasm, b, bsize, t, tsz)) cqasm
+    val cqasm' = call_quartz (fn (b, bsize) => ffi_optimize (cqasm, b, bsize, t)) cqasm
   in
     case cqasm' of
       NONE => NONE
