@@ -24,8 +24,8 @@ phony:
 
 %.mlton.quartz.bin: phony
 	@mkdir -p bin
-	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
-	$(MLTON) -mlb-path-var 'COMPAT mlton' $(FFI_FLAGS) -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb $(FFI_FILES)
+	g++  -g -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
+	$(MLTON) -mlb-path-var 'COMPAT mlton' $(FFI_FLAGS) -debug true -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb $(FFI_FILES)
 
 %.mlton.bin: phony
 	@mkdir -p bin
@@ -34,7 +34,7 @@ phony:
 %.mpl.quartz.bin: phony
 	@mkdir -p bin
 	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
-	$(MPL) -mlb-path-var 'COMPAT mpl' $(FFI_FLAGS) $(DEFAULT_FLAGS) $(MPL_FLAGS) -output bin/$@ $*.mlb $(FFI_FILES)
+	$(MPL) -mlb-path-var 'COMPAT mpl' $(FFI_FLAGS) $(DEFAULT_FLAGS) $(MPL_FLAGS) -debug true -output bin/$@ $*.mlb $(FFI_FILES)
 
 %.bin: phony
 	@mkdir -p bin
