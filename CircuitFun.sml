@@ -77,8 +77,10 @@ struct
     end *)
   fun from_qasm (chars : char Seq.t) =
     let
+     fun seq_to_str s = CharVector.tabulate (Seq.length s, (fn i => Seq.nth s i))
       val (nq, raw_str) = ParseQASM.parse chars
       val raw_gate_seq = Seq.map labelToGate raw_str
+      handle InvalidGate => (print (seq_to_str (chars)); raise InvalidGate)
     in
       (nq, raw_gate_seq)
     end
@@ -468,7 +470,8 @@ struct
       val {qset = q1, layers = l1, idx = idx1, size = s1} = c1
       val {qset = q2, layers = l2, idx = idx2, size = s2} = c2
       val compatible = QSet.is_subset (q1, q2) andalso (QSet.size q1 = QSet.size q2)
-      val _ = if (not compatible) then raise PrependIncompat else ()
+      val _ = if (not compatible) then
+         (print (Bool.toString (QSet.is_subset (q1, q2)) ^ " and sz = " ^ (Bool.toString (QSet.size q1 = QSet.size q2 ))) ; raise PrependIncompat) else ()
       val nq = QSet.size q1
       val (nl1, nl2) = (Seq.length l1, Seq.length l2)
       val qubits = QSet.to_seq q1
