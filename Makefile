@@ -33,7 +33,7 @@ phony:
 
 %.mpl.quartz.bin: phony
 	@mkdir -p bin
-	g++ -g -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
+	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
 	$(MPL) -mlb-path-var 'COMPAT mpl' $(FFI_FLAGS) $(DEFAULT_FLAGS) $(MPL_FLAGS) -debug true -output bin/$@ $*.mlb $(FFI_FILES)
 
 %.bin: phony
