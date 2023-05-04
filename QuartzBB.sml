@@ -1,7 +1,9 @@
 functor QuartzBB (structure Circuit : CIRCUIT) : BLACK_BOX_OPT =
 struct
 
-type t = (MLton.Pointer.t * Word64.word) Seq.t
+type content = (MLton.Pointer.t * Word64.word) Seq.t
+type t = content Option.option
+
 structure Circuit = Circuit
 
 val ffi_optimize = _import "opt_circuit" : string * char array * int * MLton.Pointer.t -> Int32.int;
@@ -13,9 +15,19 @@ fun load_eqset () =
   let
     val eq_ptr = ref (MLton.Pointer.null)
     val eq_file = CommandLineArgs.parseString "eqset" "Nam_4_3_complete_ECC_set.json"
-    val sz = ffi_load_greedy_xfers (eq_file, eq_ptr)
+    val sz = ffi_load_eqset (eq_file, eq_ptr)
   in
     (!eq_ptr, sz)
+  end
+
+(* fun load_xfers (eccs : MLton.Pointer.t) = *)
+fun load_xfers () =
+  let
+    val xfer_ptr = ref (MLton.Pointer.null)
+    val eq_file = CommandLineArgs.parseString "eqset" "Nam_4_3_complete_ECC_set.json"
+    val sz = ffi_load_greedy_xfers (eq_file, xfer_ptr)
+  in
+    (!xfer_ptr, sz)
   end
 
 val P = MLton.Parallel.numberOfProcessors
@@ -40,7 +52,13 @@ fun call_quartz f cqasm =
   end
 
 fun init () =
-  ArraySlice.full (SeqBasis.tabulate 1 (0, P) (fn _ => load_eqset()))
+  if CommandLineArgs.isArg ("pponly") then NONE
+  else SOME (ArraySlice.full (SeqBasis.tabulate 1 (0, P) (fn _ => load_xfers())))
+  (* let
+    val (eccs, sz) = load_eqset ()
+  in *)
+
+  (* end *)
 
 fun seq_to_str s = CharVector.tabulate (Seq.length s, (fn i => Seq.nth s i))
 
@@ -60,7 +78,11 @@ fun preprocess (c : Circuit.raw_circuit) =
   end
 
 
+exception Unintialized
 fun best_equivalent st c =
+  case st of
+    NONE => raise Unintialized
+  | SOME st =>
   let
     val cqasm = (Circuit.to_qasm c) ^ (String.str (Char.chr 0))
     val pid =  MLton.Parallel.processorNumber ()
