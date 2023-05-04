@@ -72,7 +72,7 @@ struct
         end
 
       val numLines = DelayedSeq.length lines
-      val c = Seq.tabulate parseGateLine (numLines - head_off)
+      val c = ArraySlice.full (SeqBasis.tabulate 100  (0, numLines - head_off) parseGateLine)
       val circuit = Seq.mapOption (fn x => x) c
     in
       (nqubits, circuit)

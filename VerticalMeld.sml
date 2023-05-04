@@ -71,6 +71,7 @@ struct
     if prefix_sz = 0 then (c, false)
     else (Circuit.from_raw_sequence (BlackBoxOpt.preprocess (Circuit.to_raw_sequence c)), true)
 
-  fun preprocess bbopt c = apply_opt_fun (0, CLA.parseInt "grain" 200) (vpreprocess bbopt) c
+  fun preprocess bbopt c =
+    (print ("num_layers = " ^ (Int.toString (Circuit.num_layers c)) ^ "\n"); apply_opt_fun (0, CLA.parseInt "grain" 200) (vpreprocess bbopt) c)
   fun optimize bbopt c = apply_opt_fun (BlackBoxOpt.max_size bbopt 1, CLA.parseInt "grain" 200) (vopt bbopt) c
 end
