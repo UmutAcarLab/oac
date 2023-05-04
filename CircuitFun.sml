@@ -80,7 +80,6 @@ struct
      fun seq_to_str s = CharVector.tabulate (Seq.length s, (fn i => Seq.nth s i))
       val (nq, raw_str) = ParseQASM.parse chars
       val raw_gate_seq = Seq.map labelToGate raw_str
-      handle InvalidGate => (print (seq_to_str (chars)); raise InvalidGate)
     in
       (nq, raw_gate_seq)
     end

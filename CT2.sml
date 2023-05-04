@@ -13,21 +13,25 @@ struct
     datatype t =
       RZ of (string * qubit)
     | RX of (string * qubit)
+    | U1 of (string * qubit)
 
     fun map_support u fidx =
       case u of
         RZ (s, x) => RZ (s, fidx x)
       | RX (s, x) => RX (s, fidx x)
+      | U1 (s, x) => U1 (s, fidx x)
 
     fun support u =
       case u of
         RZ(_, x) => [x]
       | RX(_, x) => [x]
+      | U1(_, x) => [x]
 
     fun labelToGate g =
       case g of
         (r_some, [x]) =>
           if (String.isPrefix "rz" r_some) then SOME (RZ(r_some, x))
+          else if (String.isPrefix "u1" r_some) then SOME (U1(r_some, x))
           else if (String.isPrefix "rx" r_some) then SOME (RX(r_some, x))
           else NONE
       | _ => NONE
@@ -35,6 +39,7 @@ struct
       case u of
         RZ(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
       | RX(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
+      | U1(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
   end
 
 
@@ -174,12 +179,24 @@ struct
   val outfile = CLA.parseString "outfile" "out.qasm"
   val no_preprocess = CLA.isArg "nopp"
 
+  fun run msg f =
+    let
+      val _ = print (msg ^ "\n")
+      val t0 = Time.now ()
+      val result =  f ()
+      val t1 = Time.now ()
+      val diff = Time.toReal(Time.- (t1, t0))
+    in
+      (print ("time taken = " ^ Real.fmt (StringCvt.FIX (SOME 4)) diff ^ "s\n")
+      ; result)
+    end
+
   fun optimize () =
     let
       val c =
         let val nppc = (TwoOPT.from_qasm cqasm) in
           if no_preprocess then nppc
-          else TwoOPT.preprocess nppc
+          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
         end
       val c' = Benchmark.run "optimizing" (fn _ => TwoOPT.optimize c)
       val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
@@ -192,7 +209,7 @@ struct
   fun preprocess () =
     let
       val c = TwoOPT.from_qasm cqasm
-      val c' = TwoOPT.preprocess c
+      val c' = run "preprocessing" (fn _ => TwoOPT.preprocess c)
     in
       if print_out then TwoOPT.dump c' outfile
       else ()
