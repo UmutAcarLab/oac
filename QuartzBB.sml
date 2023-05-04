@@ -64,7 +64,6 @@ fun best_equivalent st c =
     val cqasm = (Circuit.to_qasm c) ^ (String.str (Char.chr 0))
     val pid =  MLton.Parallel.processorNumber ()
     val (t, tsz) = Seq.nth st pid
-    val _ = check_qasm cqasm
     val cqasm' = call_quartz (fn (b, bsize) => ffi_optimize (cqasm, b, bsize, t)) cqasm
   in
     case cqasm' of
