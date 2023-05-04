@@ -33,13 +33,14 @@ fun call_quartz f cqasm =
       in
         if sz' = ~1 then NONE
         else if sz' < 0 then (print "buffer overflow, calling again\n"; loop_buff_size (~sz'))
-        else SOME (Seq.tabulate (fn i => Array.sub(buffer, i)) sz')
+        else SOME (Seq.tabulate (fn i => Array.sub (buffer, i)) sz')
       end
   in
     loop_buff_size (2 * (String.size cqasm))
   end
 
-fun init () = Seq.tabulate (fn i => load_eqset ()) P
+fun init () =
+  ArraySlice.full (SeqBasis.tabulate 1 (0, P) (fn _ => load_eqset()))
 
 fun seq_to_str s = CharVector.tabulate (Seq.length s, (fn i => Seq.nth s i))
 
