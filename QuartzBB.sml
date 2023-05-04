@@ -47,19 +47,10 @@ fun cstr s = s ^ (Char.toString (#"0"))
 
 exception InvalidPreprocess
 
-fun check_qasm cqasm = ()
-  (* let
-    val _ = Circuit.from_qasm (Seq.tabulate (fn i => String.sub(cqasm, i)) (String.size cqasm - 1))
-  in
-    ()
-  end *)
-
-
 fun preprocess (c : Circuit.raw_circuit) =
   let
-    val _ = print ("preprocessing")
     val cq = (Circuit.raw_to_qasm c) ^ (String.str (Char.chr 0))
-    val _ = check_qasm cq
+    val pid =  MLton.Parallel.processorNumber ()
     val cqasm = call_quartz (fn (b, bsize) => ffi_preprocess (cq, b, bsize)) cq
   in
     case cqasm of
