@@ -1,7 +1,6 @@
 signature GATE_SET =
 sig
   type gate
-  val num_gates : int
   val labelToGate : string * Qubit.qubit List.list -> gate
   val str : gate -> string
   val inverse : gate -> gate

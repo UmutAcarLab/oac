@@ -125,7 +125,6 @@ struct
     | CCZ _ => g
     | UNINT _ => raise Unimplemented
 
-  val num_gates = 7
 
   val gate_matrix =
     let
