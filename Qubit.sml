@@ -9,12 +9,37 @@ sig
   val eq : qubit * qubit -> bool
 end
 
+exception Unimplemented
+structure IntToString =
+struct
+  fun digitToChar x =  String.sub ("0123456789", x)
+  fun str (x : int) =
+    if x < 0 then raise Unimplemented
+    else if x < 10 then (CharVector.tabulate (1, fn i => digitToChar x))
+    else let
+      val charr = CharArray.array (x, #"\000")
+      fun loop (n, chidx) =
+        let
+          val _ = CharArray.update (charr, chidx, digitToChar (Int.rem (n, 10)))
+          val q = Int.quot (n, 10)
+        in
+          if q = 0 then
+            CharArraySlice.vector (CharArraySlice.slice (charr, chidx, NONE))
+          else loop (q, chidx - 1)
+        end
+    in
+      loop (x, x - 1)
+    end
+
+end
+
 structure Qubit :> QUBIT =
 struct
   type qubit = int
   val compare = Int.compare
   fun eq (a, b) = (a = b)
-  val str = Int.toString
+
+  val str = IntToString.str
   fun to_int x = x
   fun from_int x = x
   fun enumerate n = Seq.tabulate (fn x => x) n
