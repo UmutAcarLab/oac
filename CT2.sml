@@ -51,8 +51,10 @@ struct
   | SD of qubit
   | TD of qubit
   | X of qubit
+  | Y of qubit
   | CNOT of qubit * qubit
   | CCZ of qubit * qubit * qubit
+  | CCX of qubit * qubit * qubit
   | UNINT of Unint.t
 
 
@@ -66,8 +68,10 @@ struct
     | SD(x) => SD (fidx x)
     | TD(x) => TD (fidx x)
     | X (x) => X (fidx x)
+    | Y (x) => Y (fidx x)
     | CNOT (x, y) => CNOT (fidx x, fidx y)
     | CCZ (x, y, z) => CCZ (fidx x, fidx y, fidx z)
+    | CCX (x, y, z) => CCX (fidx x, fidx y, fidx z)
     | UNINT x => UNINT (Unint.map_support x fidx)
 
   fun support g =
@@ -78,9 +82,11 @@ struct
     | HD(x) => [x]
     | SD(x) => [x]
     | TD(x) => [x]
-    | X(x) => [x]
+    | X (x) => [x]
+    | Y (x) => [x]
     | CNOT (x, y) => [x, y]
     | CCZ (x, y, z) => [x, y, z]
+    | CCX (x, y, z) => [x, y, z]
     | UNINT x => Unint.support x
 
   fun labelToGate g =
@@ -92,8 +98,10 @@ struct
     | ("sdg", [x]) => SD (x)
     | ("tdg", [x]) => TD (x)
     | ("x", [x]) => X (x)
+    | ("y", [x]) => Y (x)
     | ("cx", [x, y]) =>  (if (not (Qubit.eq (x, y))) then () else (print "x =y label\n";raise InvalidGate); CNOT (x, y))
     | ("ccz", [x, y, z]) => CCZ (x, y, z)
+    | ("ccx", [x, y, z]) => CCX (x, y, z)
     | x =>
       case Unint.labelToGate x of
         SOME y => UNINT (y)
@@ -112,9 +120,11 @@ struct
     | SD(x) => "sdg q[" ^ (Qubit.str x) ^ "]"
     | TD(x) => "tdg q[" ^ (Qubit.str x) ^ "]"
     | X(x) => "x q[" ^ (Qubit.str x) ^ "]"
+    | Y(x) => "y q[" ^ (Qubit.str x) ^ "]"
     | CNOT(x, y) =>
     (if (not (Qubit.eq (x, y))) then () else (print "x =y!!\n";raise InvalidGate); "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]")
     | CCZ(x, y, z) => "ccz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
+    | CCX(x, y, z) => "ccx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
     | UNINT x => Unint.str x
 
   fun inverse g =
@@ -126,8 +136,10 @@ struct
     | SD(x) => S(x)
     | TD(x) => T(x)
     | X _ => g
+    | Y _ => g
     | CNOT _ => g
     | CCZ _ => g
+    | CCX _ => g
     | UNINT _ => raise Unimplemented
 
 
@@ -143,7 +155,18 @@ struct
       val sdm = ComplexMatrix.dagger sm
       val tdm = ComplexMatrix.dagger tm
       val xm = ComplexMatrix.fromList[[z, one], [one, z]]
+      val ym = ComplexMatrix.fromList[[z, (0.0, ~1.0)], [(0.0, 1.0), z]]
       val cnotm = ComplexMatrix.fromList [[one, z, z, z], [z, one, z, z], [z, z, z, one], [z, z, one, z]]
+      val ccxm =
+        let
+          fun eij (i, j) =
+            if j = 3 then if i = 7 then one else z
+            else if j = 7 then if i = 3 then one else z
+            else if i <> j then z
+            else one
+        in
+          ComplexMatrix.tabulate (8, 8) eij
+        end
       val cczm =
         let
           fun eij (i, j) =
@@ -163,8 +186,10 @@ struct
         | SD _ => sdm
         | TD _ => tdm
         | X _ => xm
+        | Y _ => xm
         | CNOT _ => cnotm
         | CCZ _ => cczm
+        | CCX _ => ccxm
         | UNINT _ => raise Unimplemented
     end
 
