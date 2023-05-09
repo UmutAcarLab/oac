@@ -11,7 +11,8 @@ struct
 
   fun from_qasm f =
     let
-      val rawc = Circuit.from_qasm (ReadFile.contentsSeq f)
+      val cs = run "reading file" (fn _ => ReadFile.contentsSeq f)
+      val rawc = run "parsing" (fn _ => Circuit.from_qasm (cs))
     in
       Circuit.from_raw_sequence rawc
     end
