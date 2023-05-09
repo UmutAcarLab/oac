@@ -42,7 +42,6 @@ struct
       | U1(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
   end
 
-
   datatype gate =
     H of qubit
   | S of qubit
@@ -56,8 +55,6 @@ struct
   | CCZ of qubit * qubit * qubit
   | CCX of qubit * qubit * qubit
   | UNINT of Unint.t
-
-
 
   fun map_support g fidx =
     case g of
@@ -203,18 +200,6 @@ struct
   val print_out = CLA.isArg "outfile"
   val outfile = CLA.parseString "outfile" "out.qasm"
   val no_preprocess = CLA.isArg "nopp"
-
-  fun run msg f =
-    let
-      val _ = print (msg ^ "\n")
-      val t0 = Time.now ()
-      val result =  f ()
-      val t1 = Time.now ()
-      val diff = Time.toReal(Time.- (t1, t0))
-    in
-      (print ("time taken = " ^ Real.fmt (StringCvt.FIX (SOME 4)) diff ^ "s\n")
-      ; result)
-    end
 
   fun optimize () =
     let
