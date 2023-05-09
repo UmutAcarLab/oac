@@ -9,6 +9,20 @@ sig
   val eq : qubit * qubit -> bool
 end
 
+
+fun run msg f =
+  let
+    val _ = print (msg ^ "\n")
+    val t0 = Time.now ()
+    val result =  f ()
+    val t1 = Time.now ()
+    val diff = Time.toReal(Time.- (t1, t0))
+  in
+    (print ("time taken = " ^ Real.fmt (StringCvt.FIX (SOME 4)) diff ^ "s\n")
+    ; result)
+  end
+
+
 exception Unimplemented
 structure IntToString =
 struct
