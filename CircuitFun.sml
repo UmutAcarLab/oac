@@ -247,12 +247,15 @@ struct
 
   fun dump (c:circuit) (f) =
     let
-      open Posix.FileSys
-      val file =  createf (f, O_WRONLY, O.fromWord 0w0, S.irwxu)
+      (* open Posix.FileSys *)
+      (* val file =  createf (f, O_WRONLY, O.fromWord 0w0, S.irwxu) *)
       val s =  to_qasm c
-      val s' = Word8Vector.tabulate (String.size s, fn i => Word8.fromInt (Char.ord (String.sub (s,i))))
+      (* use PureSeq here. *)
+      (* val s' = Word8Vector.tabulate (String.size s, fn i => Word8.fromInt (Char.ord (String.sub (s,i)))) *)
     in
-      (Posix.IO.writeVec (file, Word8VectorSlice.full s'); ())
+      WriteFile.dump (f, s)
+      (* Posix.IO.writeVec (file, (Word8VectorSlice.full (Byte.stringToBytes s))); () *)
+      (* (Posix.IO.writeVec (file, Word8VectorSlice.full s'); ()) *)
     end
 
   fun from_raw_sequence_with_set (qs : QSet.t, (gseq: gate Seq.t)) =

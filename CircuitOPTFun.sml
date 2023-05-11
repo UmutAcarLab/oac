@@ -19,6 +19,7 @@ struct
 
 
   val preprocess = MeldOpt.preprocess bbopt
+  val greedy_optimize = MeldOpt.greedy_optimize bbopt
   val optimize = MeldOpt.optimize bbopt
 
   fun gen_bench () =

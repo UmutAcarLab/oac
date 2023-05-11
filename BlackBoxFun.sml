@@ -213,6 +213,6 @@ struct
     end
 
   val apply_greedy = best_equivalent
-  fun apply_all t (c, _) = best_equivalent t c
+  fun apply_all t (c, _) = NONE
 
 end

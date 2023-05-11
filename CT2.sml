@@ -201,21 +201,6 @@ struct
   val outfile = CLA.parseString "outfile" "out.qasm"
   val no_preprocess = CLA.isArg "nopp"
 
-  fun optimize () =
-    let
-      val c =
-        let val nppc = (TwoOPT.from_qasm cqasm) in
-          if no_preprocess then nppc
-          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
-        end
-      val c' = Benchmark.run "optimizing" (fn _ => TwoOPT.optimize c)
-      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
-      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
-    in
-      if print_out then TwoOPT.dump c' outfile
-      else ()
-    end
-
   fun preprocess () =
     let
       val c = TwoOPT.from_qasm cqasm
@@ -225,10 +210,44 @@ struct
       else ()
     end
 
+  fun greedy_optimize () =
+    let
+      val c =
+        let val nppc = (TwoOPT.from_qasm cqasm) in
+          if no_preprocess then nppc
+          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
+        end
+      val c' = Benchmark.run "greedy optimization" (fn _ => TwoOPT.greedy_optimize c)
+      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
+      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
+    in
+      if print_out then TwoOPT.dump c' outfile
+      else ()
+    end
+
+  fun optimize () =
+    let
+      val c =
+        let val nppc = (TwoOPT.from_qasm cqasm) in
+          if no_preprocess then nppc
+          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
+        end
+      val c' = run "greedy optimization" (fn _ => TwoOPT.greedy_optimize c)
+      val c'' = run "search optimization" (fn _ => TwoOPT.optimize c')
+      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c'') ^ "\n"));
+      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
+    in
+      if print_out then TwoOPT.dump c'' outfile
+      else ()
+    end
+
+
+
 end
 
 
 val _ = if CLA.isArg "pponly" then Experiment.preprocess ()
+        else if CLA.isArg "greedyonly" then Experiment.greedy_optimize()
         else Experiment.optimize()
 
 (* val _ = TwoOPT.cprint c *)

@@ -2,8 +2,9 @@ signature MELD_OPT =
 sig
   structure Circuit : CIRCUIT
   structure BlackBoxOpt : BLACK_BOX_OPT
-  val optimize : BlackBoxOpt.t -> Circuit.circuit -> Circuit.circuit
   val preprocess : BlackBoxOpt.t -> Circuit.circuit -> Circuit.circuit
+  val greedy_optimize : BlackBoxOpt.t -> Circuit.circuit -> Circuit.circuit
+  val optimize : BlackBoxOpt.t -> Circuit.circuit -> Circuit.circuit
 end
 
 functor VerticalMeldFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
@@ -26,12 +27,13 @@ struct
               val (c2'_opt, opt) =
                 let
                   val c1slice_c2 =  Circuit.prepend (c1slice, c2)
+                  val psz = Int.min (wsz, Circuit.num_layers c1slice_c2)
                 in
-                  optfun (Int.min (wsz, Circuit.num_layers c1slice_c2), c1slice_c2)
+                  optfun (psz, c1slice_c2)
                 end
             in
               if opt then loop (c1ctxt, c2'_opt) (2 * wsz)
-              else Circuit.prepend(c1ctxt, c2'_opt)
+              else Circuit.prepend (c1ctxt, c2'_opt)
             end
         in
           loop (c1, c2) wsz
@@ -48,8 +50,7 @@ struct
       end
     end
 
-
-  fun vopt bbopt (prefix_sz, c) =
+  fun gvopt bbopt (prefix_sz, c) =
     let
       fun loop (c, opt) =
         let
@@ -57,7 +58,25 @@ struct
           val cut = Int.min (prefix_sz, nl)
           val (subckt, ctxt) = Circuit.split c cut
         in
-          case (BlackBoxOpt.best_equivalent bbopt subckt, cut = nl) of
+          case (BlackBoxOpt.apply_greedy bbopt subckt, cut = nl) of
+            (NONE, _) => (c, opt)
+          | (SOME c', _) => (Circuit.prepend (c', ctxt), true)
+          (* | (SOME c', false) => loop (Circuit.prepend (c', ctxt), true) *)
+        end
+    in
+      if prefix_sz = 0 then (c, false)
+      else loop (c, false)
+    end
+
+  fun vopt bbopt timeout (prefix_sz, c) =
+    let
+      fun loop (c, opt) =
+        let
+          val nl = Circuit.num_layers c
+          val cut = Int.min (prefix_sz, nl)
+          val (subckt, ctxt) = Circuit.split c cut
+        in
+          case (BlackBoxOpt.apply_all bbopt (subckt, timeout), cut = nl) of
             (NONE, _) => (c, opt)
           | (SOME c', _) => (Circuit.prepend (c', ctxt), true)
           (* | (SOME c', false) => loop (Circuit.prepend (c', ctxt), true) *)
@@ -71,7 +90,33 @@ struct
     if prefix_sz = 0 then (c, false)
     else (Circuit.from_raw_sequence (BlackBoxOpt.preprocess (Circuit.to_raw_sequence c)), true)
 
+
   fun preprocess bbopt c =
-    (print ("num_layers = " ^ (Int.toString (Circuit.num_layers c)) ^ "\n"); apply_opt_fun (0, CLA.parseInt "grain" 200) (vpreprocess bbopt) c)
-  fun optimize bbopt c = apply_opt_fun (BlackBoxOpt.max_size bbopt 1, CLA.parseInt "grain" 200) (vopt bbopt) c
+    let
+      val _ = print ("num_layers = " ^ (Int.toString (Circuit.num_layers c)) ^ "\n")
+      val wsz = 0
+      val grain = CLA.parseInt "grain" 200
+    in
+      apply_opt_fun (wsz, grain) (vpreprocess bbopt) c
+    end
+
+  fun greedy_optimize bbopt c =
+    let
+      val _ = print ("num_layers = " ^ (Int.toString (Circuit.num_layers c)) ^ "\n")
+      val wsz = BlackBoxOpt.max_size bbopt 1
+      val grain = CLA.parseInt "grain" 200
+    in
+      apply_opt_fun (wsz, grain) (gvopt bbopt) c
+    end
+
+  fun optimize bbopt c =
+    let
+      val _ = print ("num_layers = " ^ (Int.toString (Circuit.num_layers c)) ^ "\n")
+      val wsz = BlackBoxOpt.max_size bbopt 1
+      val timeout = CLA.parseInt "timeout" 1
+      val grain = (CLA.parseInt "grain" 200)
+    in
+      apply_opt_fun (wsz, grain) (vopt bbopt timeout) c
+    end
+
 end
