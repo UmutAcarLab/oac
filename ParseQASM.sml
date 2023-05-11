@@ -55,24 +55,35 @@ struct
           [x] => Qubit.to_int x
         | _ => raise InvalidFormat
       val head_off = 3
-      fun parseGateLine i =
+
+      fun all_white_space l = List.length (String.tokens (fn c => c = #" ") (Parse.parseString l)) = 0
+      fun ignore_line l =
         let
-          val i = i + head_off
-          (* gate is the string before the first space. *)
-          val gate = Parse.parseString (DelayedSeq.nth (split (line i) (#" ")) 0)
-          val bits = Seq.drop (line i) (String.size gate)
-          val qsplits = (split bits (#"q"))
-          (* val numinputs = DelayedSeq.length qsplits - 1 *)
-          fun all_white_space l = List.length (String.tokens (fn c => c = #" ") (Parse.parseString l)) = 0
+          val lstr = Parse.parseString l
+          val b = (String.isPrefix ("measure") lstr) orelse (String.isPrefix ("creg") lstr) orelse (String.isPrefix "barrier" lstr)
         in
-          if all_white_space (line i) then NONE
-          else
+          b
+        end
+      fun parseGateLine li =
+        if all_white_space li orelse (ignore_line li) then NONE
+        else let
+          (* val len = Seq.length li
+          (* gate is the string before the first space. *)
+          fun first_non_white_space idx =
+            if idx = len then idx
+            else if (Seq.nth li idx = (#" ")) then first_non_white_space (idx + 1)
+            else *)
+          val gate = Parse.parseString (DelayedSeq.nth (split li (#" ")) 0)
+          val bits = Seq.drop li (String.size gate)
+          (* val qsplits = (split bits (#"q")) *)
+          (* val numinputs = DelayedSeq.length qsplits - 1 *)
+        in
             SOME (gate, get_qubits bits)
             (* List.tabulate (numinputs, (fn i => get_qubit (DelayedSeq.nth line_split (1 + i))))) *)
         end
 
       val numLines = DelayedSeq.length lines
-      val c = ArraySlice.full (SeqBasis.tabulate 100  (0, numLines - head_off) parseGateLine)
+      val c = ArraySlice.full (SeqBasis.tabulate 100  (0, numLines - head_off) (fn i => parseGateLine (line (i + head_off))))
       val circuit = Seq.mapOption (fn x => x) c
     in
       (nqubits, circuit)
