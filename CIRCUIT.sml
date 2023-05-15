@@ -23,6 +23,7 @@ sig
   val to_raw_sequence : circuit -> raw_circuit
 
   val eval_circuit : circuit -> ComplexMatrix.t
+  val right_leaning : circuit -> circuit
   val support : circuit -> QSet.t
 
   val num_layers : circuit -> int

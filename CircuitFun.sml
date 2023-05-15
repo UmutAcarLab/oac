@@ -303,8 +303,17 @@ struct
       {qset = qs, layers = layers, idx = idx, size = ref (Seq.length gseq)}
     end
 
+
   fun from_raw_sequence (nq, gseq) =
     from_raw_sequence_with_set ((QSet.from_seq (Qubit.enumerate nq)), gseq)
+
+  fun right_leaning (c) =
+    let
+      val (nq, rawseq) = to_raw_sequence c
+      val {qset, layers, idx, size} = from_raw_sequence (nq, Seq.rev (rawseq))
+    in
+      {qset = qset, layers = Seq.rev layers, idx = idx, size = size}
+    end
 
   fun from_raw_sequence_with_relabel ((nq, gseq), q_label) =
     let
@@ -430,16 +439,48 @@ struct
 
   exception InvalidIdx
 
-  fun split (c : circuit) i =
+  (* fun split' (c : circuit) i =
     let
       val {qset, layers, idx, size} = c
       val nq = QSet.size qset
-      val _ = if (Seq.length layers < i) then raise InvalidIdx else ()
-      val (l1, l2) = (Seq.take layers i, Seq.drop layers i)
+      fun add_gate (g, i) = Array.update (gates, i, g)
+      fun loop ll li cnt =
+        let
+          val idx_set = IntSet.empty
+          val layer = ForkJoin.alloc (nq)
+          fun add_gate g qidx = Array.update (layer, qidx, g)
+          fun loop qidx idx_set cnt =
+            if cnt = i orelse (qidx = nq) then ()
+            else if IntSet.contains (idx_set, qidx) then
+              loop (qidx + 1) idx_set cnt
+            else
+              let
+                val g = layer li qidx
+                val _ = QSet.foreach (gate_support g)
+                  (fn q => ArraySlice.update (layer, QMap.lookup(idx, q), g))
+                val cnt = if is_id g then cnt else cnt + 1
+              in
+                loop (qidx + 1) ()
+                if is_id g then  loop (qidx + 1) idx_set cnt
+                else loop (qidx + 1) (IntSet.add (idx_set, qidx)) (cnt + 1)
+              end
 
-      val sub_size = fn l => Seq.reduce op+ 0 (Seq.map (layer_size nq idx) l)
-      val (s1, s2) =
-        if 2 * i < Seq.length layers then
+        in
+          body
+        end
+    in
+    end *)
+
+  fun splitAtLayer (c : circuit) (lcnt, gcnt) =
+    let
+      val {qset, layers, idx, size} = c
+      val nq = QSet.size qset
+      val _ = if (Seq.length layers < lcnt) then raise InvalidIdx else ()
+      val (l1, l2) = (Seq.take layers lcnt, Seq.drop layers lcnt)
+      val (s1, s2) = (gcnt, !size - gcnt)
+
+      (* val sub_size = fn l => Seq.reduce op+ 0 (Seq.map (layer_size nq idx) l) *)
+        (* if 2 * i < Seq.length layers then
           let
             val s1 = sub_size l1
           in
@@ -450,21 +491,54 @@ struct
             val s2 = sub_size l2
           in
             (!size - s2, s2)
-          end
-
+          end *)
       val c1 = {qset = qset, layers = l1, idx = idx, size = ref s1}
       val c2 = {qset = qset, layers = l2, idx = idx, size = ref s2}
     in
       (c1, c2)
     end
 
+  fun split (c: circuit) sz =
+    let
+      val {qset, layers, idx, size} = c
+      val nl = Seq.length layers
+      val nq = QSet.size qset
+
+      val layer_size = layer_size nq idx
+      val _ = print ("circuit size = " ^ (Int.toString (!size)) ^ " split size = " ^ (Int.toString (sz) ^ "\n"))
+      (* fun layer_size l =
+        let
+          fun loop qidx nids =
+            if qidx = nq then nids
+            else if is_id (Seq.nth l qidx) then loop (qidx + 1) (nids +1)
+            else loop (qidx + 1) nids
+        in
+          nq - (loop 0 0)
+        end *)
+
+      fun loop lcnt rem =
+        if rem <= 0 then (lcnt, ~rem + sz)
+        else if lcnt = nl then raise InvalidIdx
+        else loop (lcnt + 1) (rem - (layer_size (Seq.nth layers lcnt)))
+    in
+      splitAtLayer c (loop 0 sz)
+    end
+
+  fun splitEnd c sz =
+    let
+      val csz = size c
+    in
+      if csz < sz then raise InvalidIdx
+      else split c (csz - sz)
+    end
+(*
   fun splitEnd c n =
     let
       val nl = num_layers c
     in
       if nl < n orelse n < 0 then raise InvalidIdx
       else split c (nl - n)
-    end
+    end *)
 
   exception PrependIncompat
   fun prepend (c1 : circuit, c2: circuit) =
