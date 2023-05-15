@@ -135,6 +135,11 @@ fun apply_all st (c, timeout) =
         case Seq.nth st pid of
           GREEDY x => raise Unintialized
         | BOTH {greedy, all} => all
+      (* fun loop_apply c cnt =
+        case apply_ tfer c timeout of
+            SOME c' => loop_apply c' (cnt + 1)
+          | NONE => if cnt = 0 then NONE else SOME c *)
+      (* loop_apply c 0 *)
     in
       apply_ tfer c timeout
     end
@@ -142,7 +147,7 @@ fun apply_all st (c, timeout) =
 val best_equivalent = apply_greedy
 
 fun max_breadth x = 5
-val sz = CommandLineArgs.parseInt "size" 10
+val sz = CommandLineArgs.parseInt "size" 6
 fun max_size x i = sz
 
 
