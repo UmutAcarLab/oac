@@ -28,6 +28,6 @@ def relabel_qubits (circ):
   return transpile (circ, initial_layout=dict(rl))
 
 def dump (circ, f):
-  circ.qasm(f)
+  circ.qasm(filename=f)
 
 dump(relabel_qubits(shit_basis(circ)), "out.qasm")
