@@ -232,10 +232,13 @@ struct
           if no_preprocess then nppc
           else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
         end
+      val _ = print ("circuit size afte preprocessing = " ^ (Int.toString (TwoOPT.size c)) ^ "\n")
       val c' = run "greedy optimization" (fn _ => TwoOPT.greedy_optimize c)
       val c'' = run "search optimization" (fn _ => TwoOPT.optimize c')
-      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c'') ^ "\n"));
-      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
+      val _ = print ("greedy shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"))
+      val _ = print ("search shrank circuit by " ^ (Int.toString (TwoOPT.size c' - TwoOPT.size c'') ^ "\n"))
+      val _ = (print ("total circuit shrank by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c'') ^ "\n"));
+      print ("new size =  " ^ (Int.toString (TwoOPT.size c'') ^ "\n")))
     in
       if print_out then TwoOPT.dump c'' outfile
       else ()
