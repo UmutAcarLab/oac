@@ -21,6 +21,9 @@ struct
 
   datatype step = OPT of circuit | MELD of {prefix : circuit, window : circuit, suffix : circuit}
 
+  fun tabulateg grain f n = ArraySlice.full (SeqBasis.tabulate grain (0, n) f)
+  fun mapg grain f s = tabulateg grain (f o (Seq.nth s)) (Seq.length s)
+
   fun stepMeld wsz (optfun : oracle) (c1: circuit, c2: circuit) =
     if wsz = 0 then OPT (Circuit.prepend (c1, c2))
     else if (Circuit.size c1 = 0) then OPT (c2)
@@ -35,20 +38,6 @@ struct
         NONE => OPT (Circuit.prepend (c1p, Circuit.prepend (cwd, c2s)))
       | SOME cwd' => MELD ({prefix = c1p, window = cwd', suffix = c2s})
     end
-
-  fun meld wsz (optfun : oracle) (c1 : circuit, c2: circuit) =
-    let
-      val step = stepMeld wsz optfun
-      fun loop (c1, c2) =
-        case step (c1, c2) of
-          OPT c => c
-        | MELD {prefix, window, suffix} => loop (prefix, loop (window, suffix))
-    in
-      loop (c1, c2)
-    end
-
-  fun tabulateg grain f n = ArraySlice.full (SeqBasis.tabulate grain (0, n) f)
-  fun mapg grain f s = tabulateg grain (f o (Seq.nth s)) (Seq.length s)
 
   fun meldSeq wsz (optfun : oracle) cseq =
     let
@@ -73,24 +62,7 @@ struct
       loop cseq
     end
 
-    (* if wsz = 0 then Circuit.prepend (c1, c2)
-    else let
-      fun loop (c1, c2) =
-        if Circuit.size c1 = 0 then c2
-        else if Circuit.size c2 = 0 then c1
-        else let
-          val c1 = if CLA.isArg "rl" then Circuit.right_leaning c1 else c1
-          val (c1p, c1s) = Circuit.splitEnd c1 (Int.min (wsz, Circuit.size c1))
-          val (c2p, c2s) = Circuit.split c2 (Int.min (wsz, Circuit.size c2))
-          val cwd = Circuit.prepend (c1s, c2p)
-        in
-          case (optfun cwd) of
-            NONE => Circuit.prepend (c1p, Circuit.prepend (cwd, c2s))
-          | SOME cwd' => loop (c1p, loop (cwd', c2s))
-        end
-    in
-      loop (c1, c2)
-    end *)
+  fun meld wsz (optfun : oracle) (c1 : circuit, c2: circuit) = meldSeq wsz optfun (Seq.fromList [c1, c2])
 
   (* assume grain > wsz *)
   fun apply_opt_par (wsz, grain) (optfun: oracle) c =
@@ -108,8 +80,6 @@ struct
         else Circuit.prepend (opc1, opc2)
       end
     end
-
-
 
   fun apply_opt_par' (wsz, grain) (optfun: oracle) c =
     let
@@ -169,7 +139,7 @@ struct
     end *)
 
   fun vopt bbopt timeout c =
-    (print ("circuit size = " ^ Int.toString (Circuit.size c) ^ "\n");BlackBoxOpt.apply_all bbopt (c, timeout))
+    (print ("circuit size = " ^ Int.toString (Circuit.size c) ^ "\n"); BlackBoxOpt.apply_all bbopt (c, timeout))
     (* let
       fun loop (c, opt) =
         let
@@ -220,5 +190,4 @@ struct
     in
       apply_opt_par' (wsz, grain) (vopt bbopt timeout) c
     end
-
 end
