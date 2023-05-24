@@ -505,7 +505,7 @@ struct
       val nq = QSet.size qset
 
       val layer_size = layer_size nq idx
-      val _ = print ("circuit size = " ^ (Int.toString (!size)) ^ " split size = " ^ (Int.toString (sz) ^ "\n"))
+      (* val _ = print ("circuit size = " ^ (Int.toString (!size)) ^ " split size = " ^ (Int.toString (sz) ^ "\n")) *)
       (* fun layer_size l =
         let
           fun loop qidx nids =

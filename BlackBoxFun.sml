@@ -214,5 +214,6 @@ struct
 
   val apply_greedy = best_equivalent
   fun apply_all t (c, _) = NONE
+  fun optlog _ = raise Unimplemented
 
 end

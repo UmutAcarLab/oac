@@ -22,6 +22,8 @@ struct
   val greedy_optimize = MeldOpt.greedy_optimize bbopt
   val optimize = MeldOpt.optimize bbopt
 
+  val optlog = BlackBoxOpt.optlog bbopt
+
   fun gen_bench () =
     let
       val (nq, raw_optc) = Circuit.from_qasm (ReadFile.contentsSeq "out_unopt.qasm")

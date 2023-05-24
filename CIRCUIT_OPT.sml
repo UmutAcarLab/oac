@@ -16,4 +16,5 @@ sig
   val optimize : circuit -> circuit
   val size : circuit -> int
   val dump : circuit -> string -> unit
+  val optlog : (Time.time * int) -> string
 end

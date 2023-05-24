@@ -10,4 +10,5 @@ sig
   val max_breadth : t -> int
   val max_size : t -> int -> int
   val preprocess : Circuit.raw_circuit -> Circuit.raw_circuit
+  val optlog : t -> (Time.time * int) -> string
 end
