@@ -1,0 +1,3 @@
+calling gopt
+(0.000000, 87.000000);(0.200000, 85.000000);(0.200000, 83.000000);(0.200000, 81.000000);(0.200000, 79.000000);(0.201000, 77.000000);(0.201000, 75.000000);(0.339000, 75.000000);
+Optimization results of Quartz for tof_5.qasm on Nam's gate set. Gate count after optimization: 75, Circuit depth: 61, 1.397 seconds.

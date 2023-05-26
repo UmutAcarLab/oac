@@ -1,0 +1,3 @@
+calling gopt
+(0.000000, 51.000000);(0.012000, 50.000000);(0.130000, 50.000000);
+Optimization results of Quartz for mod5_4.qasm on Nam's gate set. Gate count after optimization: 50, Circuit depth: 45, 1.184 seconds.

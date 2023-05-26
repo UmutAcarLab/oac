@@ -196,14 +196,17 @@ end
 structure Experiment =
 struct
   structure TwoOPT = CircuitOPT (structure GateSet = TwoGateSet)
-  val cqasm = CLA.parseString "circuit" "test-small.qasm"
+  val qasm_file = CLA.parseString "circuit" "test-small.qasm"
   val print_out = CLA.isArg "outfile"
   val outfile = CLA.parseString "outfile" "out.qasm"
   val no_preprocess = CLA.isArg "nopp"
 
+  val circ_name =
+    Substring.string (#2 (Substring.splitr (fn c => c <> #"/") (Substring.full qasm_file)))
+
   fun preprocess () =
     let
-      val c = TwoOPT.from_qasm cqasm
+      val c = TwoOPT.from_qasm qasm_file
       val c' = run "preprocessing" (fn _ => TwoOPT.preprocess c)
     in
       if print_out then TwoOPT.dump c' outfile
@@ -213,7 +216,7 @@ struct
   fun greedy_optimize () =
     let
       val c =
-        let val nppc = (TwoOPT.from_qasm cqasm) in
+        let val nppc = (TwoOPT.from_qasm qasm_file) in
           if no_preprocess then nppc
           else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
         end
@@ -221,7 +224,7 @@ struct
       val c' = Benchmark.run "greedy optimization" (fn _ => TwoOPT.greedy_optimize c)
       val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
       print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
-      val _ = print ((TwoOPT.optlog rellog) ^ "\n")
+      val _ = WriteFile.dump ("logs/" ^ (circ_name)^".greedy.log", (TwoOPT.optlog rellog) ^ "\n")
     in
       if print_out then TwoOPT.dump c' outfile
       else ()
@@ -230,7 +233,7 @@ struct
   fun optimize () =
     let
       val c =
-        let val nppc = (TwoOPT.from_qasm cqasm) in
+        let val nppc = (TwoOPT.from_qasm qasm_file) in
           if no_preprocess then nppc
           else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
         end
@@ -242,7 +245,7 @@ struct
       val _ = print ("search shrank circuit by " ^ (Int.toString (TwoOPT.size c' - TwoOPT.size c'') ^ "\n"))
       val _ = (print ("total circuit shrank by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c'') ^ "\n"));
       print ("new size =  " ^ (Int.toString (TwoOPT.size c'') ^ "\n")))
-      val _ = print ((TwoOPT.optlog rellog) ^ "\n")
+      val _ = WriteFile.dump ("logs/" ^ (circ_name)^".search.log", (TwoOPT.optlog rellog) ^ "\n")
     in
       if print_out then TwoOPT.dump c'' outfile
       else ()

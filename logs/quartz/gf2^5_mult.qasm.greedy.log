@@ -1,0 +1,3 @@
+calling gopt
+(0.000000, 287.000000);(0.000000, 285.000000);(0.091000, 283.000000);(0.091000, 281.000000);(0.860000, 279.000000);(1.638000, 279.000000);
+Optimization results of Quartz for gf2^5_mult.qasm on Nam's gate set. Gate count after optimization: 279, Circuit depth: 133, 2.702 seconds.
