@@ -16,6 +16,9 @@ struct
   structure Circuit = BlackBoxOpt.Circuit
   structure CLA = CommandLineArgs
   type circuit = Circuit.circuit
+
+  type time_info = {wdtime : Real.real, total : Real.real}
+
   type oracle = circuit -> circuit option
 
 
@@ -50,7 +53,6 @@ struct
         if Seq.length cseq = 1 then Seq.nth cseq 0
         else let
           val n = Seq.length cseq
-          val _ = print ("melding seq size = " ^ (Int.toString (n)) ^ "\n")
           val stepseq = tabulateg 1 (fn i => step_to_seq (stepf (Seq.nth cseq (2*i), Seq.nth cseq (2*i + 1)))) (n div 2)
           val cseq' =
             if (n mod 2) = 0 then Seq.flatten stepseq
@@ -100,25 +102,48 @@ struct
       (* SeqBasis.reduce 1 meld empty_circuit (0, Seq.length cseq_opt) (Seq.nth cseq_opt) *)
     end
 
+  fun apply_opt_seq' (wsz, grain) (optfun: oracle) c =
+    let
+      fun splits c cl =
+        if Circuit.size c <= grain then c::cl
+        else let
+          val (peel, c') = Circuit.split c grain
+        in
+          splits c' (peel::cl)
+        end
+      val cl = splits c []
+      val cseq = Seq.rev (Seq.fromList cl)
+      val cseq_opt = mapg 1 (fn c => case (optfun c) of SOME c' => c' | NONE => c) cseq
+      val meld = meld wsz optfun
+      (* val empty_circuit = Circuit.from_raw_sequence (Circuit.num_qubits c, Seq.empty ()) *)
+    in
+      meldSeq wsz optfun cseq_opt
+      (* SeqBasis.reduce 1 meld empty_circuit (0, Seq.length cseq_opt) (Seq.nth cseq_opt) *)
+    end
+
   fun apply_opt_seq (wsz, grain) (optfun : oracle) c =
     let
       val meld = meld wsz optfun
+      fun meld_seq (c1, c2) =
+        case stepMeld wsz optfun (c1, c2) of
+          OPT c => c
+        | MELD {prefix, window, suffix} => meld_seq (meld_seq (prefix, window), suffix)
+
       fun absorb c1 c2 =
         if Circuit.size c2 = 0 then c1
         else let
           val (c2p, c2s) = Circuit.split c2 (Int.min (grain, Circuit.size c2))
-          val _ = print ("c2p size= " ^ (Int.toString (Circuit.size c2p) ^ "\n"))
-          val _ = print ("c2s size= " ^ (Int.toString (Circuit.size c2s) ^ "\n"))
         in
           case optfun c2p of
             NONE => absorb (Circuit.prepend (c1, c2p)) c2s
-          | SOME c2p' => absorb (meld (c1, c2p')) c2s
+          | SOME c2p' => absorb (meld_seq (c1, c2p')) c2s
         end
     in
       absorb (Circuit.from_raw_sequence (Circuit.num_qubits c, Seq.empty())) c
     end
 
-  fun gvopt bbopt c = BlackBoxOpt.apply_greedy bbopt c
+  fun gvopt bbopt c =   BlackBoxOpt.apply_greedy bbopt c
+
     (* case  of
       NONE => (c, false)
     | SOME c' => (c', )
@@ -172,12 +197,13 @@ struct
   fun greedy_optimize bbopt c =
     let
       val nq = Circuit.num_qubits c
-      val wsz =  nq * (BlackBoxOpt.max_size bbopt 1)
-      val grain = Int.max (100, wsz)
+      val wsz = nq * (CLA.parseInt "size" 6)
+      val grain = CLA.parseInt "grain" (10 * wsz)
       val _ = print ("size = " ^ (Int.toString (Circuit.size c)) ^ "\n")
+      val nc =  apply_opt_seq (wsz, grain) (gvopt bbopt) c
     in
       (* apply_opt_seq (wsz, grain) (gvopt bbopt) c *)
-      apply_opt_par' (wsz, grain) (gvopt bbopt) c
+      nc
     end
 
   fun optimize bbopt c =
