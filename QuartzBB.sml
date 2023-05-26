@@ -8,9 +8,9 @@ struct
     let
       val l =
         case !r of
-          [] => [(Time.now (), isz)]
-        | (t, fsz)::_ => (Time.now(), fsz)::(!r)
-      val s = Seq.rev (Seq.fromList l)
+          [] => [(it, isz), (Time.now (), isz)]
+        | (t, fsz)::_ => (it, 0)::(List.rev ((Time.now(), fsz)::(!r)))
+      val s = (Seq.fromList l)
       val s' = Seq.map (fn (t, sz) => (Time.toReal (Time.-(t, it)), isz - sz)) s
       val ss' = Seq.map (fn (t, sz) => "(" ^ (Real.toString t) ^ ", " ^ (Int.toString sz) ^ ");") s'
     in
