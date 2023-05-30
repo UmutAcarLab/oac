@@ -181,8 +181,9 @@ fun apply_all (st, log) (c, timeout) =
             SOME c' => loop_apply c' (cnt + 1)
           | NONE => if cnt = 0 then NONE else SOME c *)
       (* loop_apply c 0 *)
+    val to = Real.trunc (Time.toReal timeout)
     in
-      apply_ tfer c timeout log
+      apply_ tfer c to log
     end
 
 val best_equivalent = apply_greedy

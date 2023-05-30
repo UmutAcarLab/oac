@@ -245,7 +245,7 @@ struct
       val _ = print ("search shrank circuit by " ^ (Int.toString (TwoOPT.size c' - TwoOPT.size c'') ^ "\n"))
       val _ = (print ("total circuit shrank by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c'') ^ "\n"));
       print ("new size =  " ^ (Int.toString (TwoOPT.size c'') ^ "\n")))
-      val _ = WriteFile.dump ("logs/" ^ (circ_name)^".search.log", (TwoOPT.optlog rellog) ^ "\n")
+      val _ = WriteFile.dump ("logs/lopt/" ^ (circ_name)^".search.log", (TwoOPT.optlog rellog) ^ "\n")
     in
       if print_out then TwoOPT.dump c'' outfile
       else ()
