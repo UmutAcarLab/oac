@@ -48,7 +48,6 @@ struct
   fun timed_map (costf, budget) (f, q) s =
     timed_tabulate (costf, budget) (f o (Seq.nth s), q o (Seq.nth s)) (Seq.length s)
 
-
   fun seq_to_circuit cseq =
     let
       val nq =
@@ -101,7 +100,6 @@ struct
     end
 
   fun meld wsz (optfun : oracle) (c1 : circuit, c2: circuit) = meldSeq wsz optfun (Seq.fromList [c1, c2])
-
 
   fun apply_opt_seq repeat (P {wsz, grain, wdtime, total}) (optfun: oracle) c =
     let
@@ -170,25 +168,6 @@ struct
 
   fun gvopt bbopt (c, t) = BlackBoxOpt.apply_greedy bbopt c
 
-    (* case  of
-      NONE => (c, false)
-    | SOME c' => (c', )
-    let
-      fun loop (c, opt) =
-        let
-          val nl = Circuit.num_layers c
-          (* val cut = Int.min (prefix_sz, nl) *)
-          (* val (subckt, ctxt) = Circuit.split c cut *)
-        in
-          case (BlackBoxOpt.apply_greedy bbopt c) of
-            NONE => (c, opt)
-          | SOME c' => (c', true)
-        end
-    in
-      if prefix_sz = 0 then (c, false)
-      else loop (c, false)
-    end *)
-
   fun vopt bbopt (c, t) =
     (print ("circuit size = " ^ Int.toString (Circuit.size c) ^ "\n");
       print ("timeout given = " ^ (Real.toString (Time.toReal t)) ^ "\n");
@@ -205,6 +184,7 @@ struct
     end
 
   fun parseTime (s, d) = Time.fromReal (Real.fromInt (CLA.parseInt s d))
+
   fun greedy_optimize bbopt c =
     let
       val nq = Circuit.num_qubits c
