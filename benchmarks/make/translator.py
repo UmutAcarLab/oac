@@ -81,6 +81,10 @@ def dump (circ, f):
   circ.qasm(filename=f)
 
 
+def dump_file_name (f):
+  pref = '.'.join (f.split('.')[:-1])
+  return pref + '.clifft.qasm'
+
 filename = sys.argv[1]
 print("file = ", filename)
 circ = QuantumCircuit.from_qasm_file(filename)
@@ -91,5 +95,6 @@ if (not parameterized):
 
 # print(circ)
 fc = relabel_qubits(shit_basis(circ, target_basis), target_basis)
-dump(fc, "out.qasm")
+print(filename, dump_file_name(filename))
+dump(fc, dump_file_name(filename))
 
