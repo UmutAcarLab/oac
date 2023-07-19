@@ -4,8 +4,8 @@ sig
   structure BlackBoxOpt : BLACK_BOX_OPT
   type circuit = Circuit.circuit
   val preprocess : BlackBoxOpt.t -> circuit -> circuit
-  val greedy_optimize : BlackBoxOpt.t -> circuit -> circuit
-  val optimize : BlackBoxOpt.t -> circuit -> circuit
+  val greedy_optimize : BlackBoxOpt.t -> circuit -> Time.time -> circuit
+  val search : BlackBoxOpt.t -> circuit -> Time.time -> circuit
 end
 
 functor VerticalMeldFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
@@ -183,28 +183,25 @@ struct
       apply_opt_seq false (P {wsz = 0, grain = 200, wdtime = NONE, total = maxTime}) (vpreprocess bbopt) c
     end
 
-  fun parseTime (s, d) = Time.fromReal (Real.fromInt (CLA.parseInt s d))
-
-  fun greedy_optimize bbopt c =
+  fun greedy_optimize bbopt c timeout =
     let
       val nq = Circuit.num_qubits c
       val wsz = nq * (CLA.parseInt "size" 6)
       val grain = CLA.parseInt "grain" (10 * wsz)
       val _ = print ("size = " ^ (Int.toString (Circuit.size c)) ^ "\n")
-      val timeout = parseTime ("timeout", 3600)
       val nc =  apply_opt_seq false (P {wsz = wsz, grain = grain, wdtime = NONE, total = timeout}) (gvopt bbopt) c
     in
       (* apply_opt_seq (wsz, grain) (gvopt bbopt) c *)
       nc
     end
 
-  fun optimize bbopt c =
+  fun search bbopt c timeout =
     let
       val nq = Circuit.num_qubits c
       val wsz =  Int.min (nq * (BlackBoxOpt.max_size bbopt 1), 20)
+      (* val wsz = nq * (CLA.parseInt "size" 6) *)
       val grain = CLA.parseInt "grain" (2 * wsz)
-      val timeout = parseTime ("timeout", 3600)
-      val wt = SOME (parseTime ("wt", 1))
+      val wt = SOME (Time.fromReal (Real.fromInt (CLA.parseInt "wt" 1)))
       val _ = print ("window size = " ^ (Int.toString wsz) ^ " grain = " ^ (Int.toString grain) ^ "\n")
       val _ = print ("size = " ^ (Int.toString (Circuit.size c)) ^ "\n")
     in
