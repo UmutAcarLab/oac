@@ -33,6 +33,11 @@ struct
       P g => GateSet.str g
     | I x => ""
 
+  fun gate_cost (g) =
+    case g of
+      P g => GateSet.gate_cost g
+    | _ => 0
+
   fun gate_matrix g =
     case g of
       P g => GateSet.gate_matrix (g)
@@ -241,6 +246,11 @@ struct
     end
 
   fun size_raw (_, gseq) = Seq.length gseq
+
+  fun cost_raw (_, gseq) =
+    Seq.reduce op+ 0 (Seq.map (gate_cost) gseq)
+
+  fun cost (c : circuit) = cost_raw (to_raw_sequence c)
 
   fun cstring (c : circuit) sep = raw_str (to_raw_sequence c) sep
   fun to_qasm (c : circuit) = raw_to_qasm (to_raw_sequence c)

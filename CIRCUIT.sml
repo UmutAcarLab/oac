@@ -11,6 +11,10 @@ sig
   val eval_raw_sequence : raw_circuit -> ComplexMatrix.t
   val size_raw : raw_circuit -> int
 
+
+  val cost : circuit -> int
+  val cost_raw : raw_circuit -> int
+
   val from_raw_sequence : raw_circuit -> circuit
   val from_raw_sequence_with_set : QSet.t * gate Seq.t -> circuit
   val from_raw_sequence_with_relabel : raw_circuit * (Qubit.qubit -> Qubit.qubit) -> circuit

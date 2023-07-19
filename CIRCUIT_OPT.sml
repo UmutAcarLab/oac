@@ -12,9 +12,10 @@ sig
   val support : circuit -> QSet.t
   val gate : circuit -> layer -> Qubit.qubit -> gate
   val preprocess : circuit -> circuit
-  val greedy_optimize : circuit -> circuit
-  val optimize : circuit -> circuit
+  val greedy_optimize : circuit -> Time.time -> circuit
+  val search : circuit -> Time.time -> circuit
   val size : circuit -> int
+  val cost : circuit -> int
   val dump : circuit -> string -> unit
   val optlog : (Time.time * int) -> string
 end

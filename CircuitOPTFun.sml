@@ -20,7 +20,7 @@ struct
 
   val preprocess = MeldOpt.preprocess bbopt
   val greedy_optimize = MeldOpt.greedy_optimize bbopt
-  val optimize = MeldOpt.optimize bbopt
+  val search = MeldOpt.search bbopt
 
   val optlog = BlackBoxOpt.optlog bbopt
 

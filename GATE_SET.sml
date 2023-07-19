@@ -7,4 +7,5 @@ sig
   val support : gate -> Qubit.qubit List.list
   val gate_matrix : gate -> ComplexMatrix.t
   val map_support : gate -> (Qubit.qubit -> Qubit.qubit) -> gate
+  val gate_cost : gate -> int
 end
