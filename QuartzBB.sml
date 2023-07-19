@@ -137,7 +137,7 @@ fun apply_ (t, tsz) c timeout log =
         let
           (* val _ = print ("back from quartz = " ^ (seq_to_str charseq)) *)
           val (c' : Circuit.raw_circuit) = Circuit.from_qasm (charseq)
-          val szd = (Circuit.size_raw c' - Circuit.size c)
+          val szd = (Circuit.cost_raw c' - Circuit.cost c)
         in
           if (szd >= 0) then (NONE, szd)
           else (SOME (Circuit.reindex (c', c)), szd)
