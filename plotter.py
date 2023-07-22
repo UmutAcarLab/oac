@@ -2,6 +2,13 @@ import matplotlib.pyplot as plt
 import glob
 from tabulate import tabulate
 from os import listdir
+from enum import Enum
+import qiskit_api as qisk
+
+
+class Tool (Enum):
+  quartz = 1
+  lopt = 2
 
 BASE_DIR = "benchmarks/"
 class Colors:
@@ -15,6 +22,8 @@ class Colors:
   CYAN = "\033[36m"
   WHITE = "\033[37m"
   RESET = "\033[0m"
+
+
 
 def parse_data (d):
   if d == "":
@@ -86,40 +95,53 @@ def read_local_log (f):
   gv = parse_point(rows[1].split(";")[0])[1]
   return (time_values, circuit_size_values, gt, gv)
 
-def log_from_bench(bn, quartz):
-  if quartz:
+def log_from_bench(bn, tool):
+  if tool == Tool.quartz:
     return read_quartz_log (BASE_DIR + bn + "/" + bn + ".quartz.combined.log")
   else:
     return read_local_log(BASE_DIR + bn + "/" + bn + ".lopt.log")
 
-def plot_bench (bn, greedy):
+
+def split (times, sizes, time):
+  logs = list(zip(times, sizes))
+  # print(list(logs))
+  before = [t for t in logs if t[0] <= time]
+  after = [t for t in logs if t[0] >= time]
+  ub = list(zip(*before))
+  ua = list(zip(*after))
+  return (list(ub[0]), list(ub[1]), list(ua[0]), list(ua[1]))
+
+def plot_bench (bn):
   # if greedy:
   #   suffix = '.qasm.greedy.log'
   # else:
   #   suffix = '.qasm.search.log'
-  (tq, szq, gtq, _) = log_from_bench(bn, True)
-  print(tq, szq)
+  (tq, szq, gtq, _) = log_from_bench(bn, Tool.quartz)
+  (qtg, qsg, qts, qss) = split(tq, szq, gtq)
+
+  fig, ax = plt.subplots()
+
   if (len(tq) >= 2):
-    plt.plot(tq, szq, marker = 's', label='Quartz', color = 'blue')
-    plt.plot(tq[-1], szq[-1], marker = 's', color = 'blue')
-    plt.axvline(x=gtq, color='red', linestyle='--')
-  (tl, szl, gtl, _) = log_from_bench(bn, False)
+    ax.plot(qtg + qts, qsg + qss, marker = 's', label='Quartz', color = 'blue')
+    # ax.set_xscale('log')
+    # plt.xscale('log')
+    # plt.
+    # plt.plot(tq[-1], szq[-1], marker = 's', color = 'blue')
+    # plt.axvline(x=gtq, color='red', linestyle='--')
+  (tl, szl, gtl, _) = log_from_bench(bn, Tool.lopt)
   if (len(tl) >= 2):
     plt.plot(tl, szl, marker = 'o', label='Local optimizer', color = 'green')
-    plt.axvline(x = gtl, color='red', linestyle='--')
-  plt.xlabel('Time')
-  plt.ylabel('Circuit Size')
-  plt.legend()
-  plt.title('%s: Circuit Size vs. Time'%(bn.capitalize()))
+    plt.plot(tl[-1], szl[-1], marker = 'o', color = 'green')
+    # plt.axvline(x = gtl, color='red', linestyle='--')
+  ax.set_xlabel('Time')
+  ax.set_ylabel('Circuit Size')
+  ax.legend()
+  ax.set_title('%s: Circuit Size vs. Time'%(bn.capitalize()))
+  fig.tight_layout()
   plt.savefig("plots/%s.combined.png"%(bn), dpi=300)
-  # if greedy:
-  #   plt.title('%s: Circuit Size vs. Time (greedy)'%(bn.capitalize()))
-  #   plt.savefig("plots/%s.greedy.png"%(bn), dpi=300)
-  # else:
-  #   plt.title('%s: Circuit Size vs. Time (search)'%(bn.capitalize()))
-  #   plt.savefig("plots/%s.search.png"%(bn), dpi=300)
 
-plot_bench ("qft_n160", False)
+
+# plot_bench ("qft_n160", False)
 # print(read_local_log("logs/lopt/adder_8.qasm.combined.log"))
 # print(read_local_log("logs/lopt/adder_8.qasm.combined.log"))
 # Sample data
@@ -192,8 +214,8 @@ bench_list = list(filter (lambda x : not(x in skip_list), bench_list))
 
 
 curr_list = bench_list
-print(curr_list)
-exit()
+# print(curr_list)
+# exit()
 
 
 def cols_from_log (l):
@@ -203,20 +225,37 @@ def cols_from_log (l):
 # print(cols_from_log(log_from_bench ("adder_8", True)))
 # print(cols_from_log(log_from_bench ("adder_8", False)))
 
+def create_plots(curr_list):
+  print("here")
+  quartz_logs = list (map(lambda x: (x, log_from_bench(x, Tool.quartz)), curr_list))
+  lopt_logs = list (map(lambda x: (x, log_from_bench(x, Tool.lopt)), curr_list))
+  plot_bench ("shor_7_mod_15_n12_from_python")
+
+def get_out_file (bn, tool):
+  if tool == Tool.quartz:
+    return BASE_DIR + bn + "/" + bn + ".quartz.output"
+  else: 
+    return BASE_DIR + bn + "/" + bn + ".lopt.output"
+
+def get_bench_file (bn):
+  return BASE_DIR + bn + "/" + bn + ".qasm"
 
 def create_tables (curr_list, write):
-  quartz_logs = list (map(lambda x: (x, log_from_bench(x, True)), curr_list))
-  lopt_logs = list (map(lambda x: (x, log_from_bench(x, False)), curr_list))
-  headers = ["Name", "Original", "QUARTZ", "LOPT", "% diff", "QUARTZ GREEDY", "LOPT GREEDY"]
+  quartz_logs = list (map(lambda x: (x, log_from_bench(x, Tool.quartz)), curr_list))
+  lopt_logs = list (map(lambda x: (x, log_from_bench(x, Tool.lopt)), curr_list))
+  headers = ["Name", "Original", "QUARTZ", "LOPT", "Original CX", "QUARTZ CX", "LOPT CX"]
   tab = []
   # LATEX IT
   for ((bn, q), (bnd, l)) in zip(quartz_logs, lopt_logs):
+    print("bench = ", bn)
     (q0, qf, gqf) = cols_from_log(q)
     (l0, lf, glf) = cols_from_log(l)
+    qfile = get_out_file (bn, Tool.quartz)
+    lfile = get_out_file (bn, Tool.lopt)
     assert(bn == bnd)
     im = (1 - (float(lf)/float(qf))) * 100
     if (q0 == l0):
-      tab.append([bn, q0, qf, lf, im, gqf, glf])
+      tab.append([bn, q0, qf, lf, qisk.get_cx_count_fast(get_bench_file(bn)+".preprocessed"), qisk.get_cx_count_fast(qfile), qisk.get_cx_count_fast(lfile)])
     else:
       print(Colors.RED, bn, Colors.RESET)
 
@@ -232,6 +271,7 @@ def create_tables (curr_list, write):
     with open("prelim2.tex", "w") as f:
       f.write(ltab2)
   else:
+    print(tab)
     print("not the case yet")
 
-create_tables(curr_list, False)
+create_tables(curr_list, True)
