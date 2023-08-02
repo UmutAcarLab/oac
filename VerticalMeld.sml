@@ -182,7 +182,7 @@ struct
     let
       val _ = print ("size = " ^ (Int.toString (Circuit.size c)) ^ "\n")
     in
-      apply_opt_seq false (P {wsz = 0, grain = 200, wdtime = NONE, total = maxTime}) (vpreprocess bbopt) c
+      apply_opt_seq false (P {wsz = 0, grain = Circuit.size c, wdtime = NONE, total = maxTime}) (vpreprocess bbopt) c
     end
 
   fun greedy_optimize bbopt c timeout =
