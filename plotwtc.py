@@ -9,7 +9,8 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 import numpy as np
 from numpy.polynomial.polynomial import polyfit
-
+from family import *
+from scipy.stats import gmean
 
 from matplotlib.ticker import MultipleLocator
 
@@ -20,11 +21,15 @@ class GateSet (Enum):
 class Tool (Enum):
   quartz = 1
   lopt = 2
+
+  def extension ():
+    return "0.01"
   def name (t):
     if t == Tool.quartz:
       return "quartz"
     else:
-      return "lopt"
+      return "lopt.0.01"
+
 
 BASE_DIR = "benchmarks/"
 class Colors:
@@ -111,13 +116,29 @@ def read_local_log (f):
   gv = parse_point(rows[1].split(";")[0])[1]
   return (time_values, circuit_size_values, gt, gv)
 
+def read_queso_log (f):
+  import re
+  log_line = read_file(f)
+  # Extract the numbers using regular expressions
+  seconds_match = re.search(r'optimized in ([\d.]+) seconds', log_line)
+  gate_count_match = re.search(r'Final gate count: (\d+)', log_line)
+
+  if seconds_match and gate_count_match:
+      seconds = int(seconds_match.group(1))
+      gate_count = int(gate_count_match.group(1))
+      return (gate_count, seconds)
+  else:
+      print("Pattern not found in the log line.", f)
+
+
 def log_from_bench(bn, tool, gate_set):
-  print("bench", bn)
+  print("bench = ", bn)
+
   path = BASE_DIR + bn + "/" + bn + gate_set.value
   if tool == Tool.quartz:
     return read_quartz_log (path +  ".quartz.combined.log")
   else:
-    return read_local_log(path +  ".lopt.log")
+    return read_local_log(path +  ".lopt.%s.log"%(Tool.extension()))
 
 
 def split (times, sizes, time):
@@ -127,6 +148,8 @@ def split (times, sizes, time):
   after = [t for t in logs if t[0] >= time]
   ub = list(zip(*before))
   ua = list(zip(*after))
+  if ua == []:
+    ua = [[], []]
   return (list(ub[0]), list(ub[1]), list(ua[0]), list(ua[1]))
 
 def plot_bench (bn, gate_set):
@@ -207,6 +230,86 @@ def plot_bench_inset (bn, gate_set):
   fig.tight_layout()
   plt.savefig("plots/%s%s.inset.png"%(bn, gate_set.value), dpi=300)
   plt.close()
+
+import re
+def num_qubits(bn):
+  pattern = r'n(\d+)'
+
+  match = re.findall(pattern, bn)
+  if match:
+    return int(match[0])
+  else:
+    return None
+
+def plot_times (families, gate_set):
+  def points_fam(fam):
+    l = fam.value
+    curr_list = list(map  (lambda x: Family.file(fam, x), l))
+    logs = list(map (lambda x: log_from_bench(x, Tool.lopt, gate_set), curr_list))
+
+    nqs = list(map (lambda x: num_qubits(x), curr_list))
+    # x = []
+    # for (nq, l) in zip(nqs, logs):
+      # x.append(float(l[1][0]))
+      # x.append(float(l[1][0] * nq)/(x1 * nqs[0]))
+    x = list(map (lambda x: float(2 * x[1][0] - x[1][-1]), logs))
+    yl = list(map (lambda x: x[2], logs))
+    so = (list(zip(x, yl)))
+    so2 = sorted(so, key=lambda x : x[0])
+    (x, yl) = zip(*so2)
+    return (fam, x, yl)
+  points = [points_fam (x) for x in families]
+  print(points)
+  colors = ['#1f77b4', '#2ca02c', '#d62728', '#9467bd', '#ff7f0e']
+
+
+  for (color, (fam, x, y)) in zip(colors, points):
+    # for (xp, yp) in zip(x, y):
+    # plt.scatter ([float(xp)/(160.0) for xp in x], y, label = Family.name(fam))
+    plt.plot ([float(xp/1000) for xp in x], y, label = Family.name(fam), marker='o', color = color)
+    f = "plots/linearity%s%s%s.png"%(Family.name(fam), Tool.extension(), gate_set.value)
+    print(x, y)
+    # plt.ylabel('Optimization Time (s)', fontsize=20)
+    # plt.xlabel("Circuit Size (in thousands)", fontsize=20)
+    font = {'size'   : 16}
+
+    plt.rc('font', **font)
+    plt.xticks(fontsize=22)
+    plt.yticks(fontsize=22)
+    # plt.title("Linearity of the COAM algorithm with oracle timeout (%s)"%(Tool.extension()))
+    plt.legend()
+    # plt.subplots_adjust(bottom=0.2)
+    # plt.subplots_adjust(left=0.2)
+    plt.savefig(f)
+    print(f)
+    plt.close()
+
+  # def log_function(k, x):
+  #     return k * x
+  # x = np.linspace(1000, 120000, 100)  # Adjust the range as per your requirement
+
+  # # Calculate y values using k = 2
+  # k = 0.0035
+  # y = log_function(k, x)
+  # # plt.xlim(left=100, right=50000)
+  # # plt.plot(x, y, label='y = m * x')
+  # # plt.xscale('log')
+  # # plt.title("Time vs. Size with oracle timeout (%s)"%(Tool.extension()))
+  # # plt.ylabel("Time")
+  # plt.xlabel("Circuit size")
+
+  # plt.ylabel('Optimization Time (s)')
+  # # plt.xlabel("Relative Circuit Size (ratio to smallest)")
+  # plt.title("Linearity of the COAM algorithm with oracle timeout (%s)"%(Tool.extension()))
+  # plt.legend()
+  # # plt.xlim(left = 0, right=1000)
+  # # plt.ylim(bottom =0, top=50)
+  # # plt.xpltis.set_major_locator(MultipleLocator(1000))
+  # plt.legend()
+  # f = "plots/linearityscat%s%s.png"%(Tool.extension(), gate_set.value)
+  # plt.savefig(f, dpi=300)
+  # print(f)
+  # plt.close()
 
 def plot_scatter (curr_list, gate_set, fm):
   qlogs = list(map (lambda x: log_from_bench(x, Tool.quartz, gate_set), curr_list))
@@ -415,25 +518,6 @@ def remove_bench(b, bn):
 	filtered = [s for s in b if not s.startswith(bn)]
 	return filtered
 
-bench_list = sorted(listdir(BASE_DIR))
-bench_list.remove('make')
-bench_list.remove('original')
-bench_list.remove('shor_n5')
-# bench_list = sorted(remove_bench(bench_list, 'gf'))
-# bench_list = sorted(remove_bench(bench_list, 'qft'))
-
-skip_list = []
-skip_list = ["qcla_adder_10", "shor_7_mod_15_n18_from_python",  "gf2^128_mult", "gf2^131_mult", "gf2^163_mult", "gf2^64_mult"]
-# qcla_adder_10 450 451
-bench_list = list(filter (lambda x : not(x in skip_list), bench_list))
-
-# curr_list = sorted(bench_list[0:4])
-
-
-curr_list = bench_list
-# print(curr_list)
-# exit()
-
 
 def cols_from_log (l):
   (tvs, sizes, gt, gv) = l
@@ -478,42 +562,160 @@ def create_plot_file(curr_list):
     s+=footer
   return s
 
-def create_tables (curr_list, write, gate_set):
-  quartz_logs = list (map(lambda x: (x, log_from_bench(x, Tool.quartz, gate_set)), curr_list))
-  lopt_logs = list (map(lambda x: (x, log_from_bench(x, Tool.lopt, gate_set)), curr_list))
-  headers = ["Name", "Original", "QUARTZ", "LOPT", "Original CX", "QUARTZ CX", "LOPT CX"]
+def create_queso_tables(curr_list, names, write):
+  queso_pre = "queso_runs/"
+  if Tool.extension() == "0.01":
+    queso_pre+='t-low/'
+  elif Tool.extension() == "0.1":
+    queso_pre+='t-mid/'
+  queso_logs =  list (map(lambda x: read_queso_log(queso_pre + x + ".out"), curr_list))
+  lopt_logs = list (map(lambda x: log_from_bench(x, Tool.lopt, GateSet.nam), curr_list))
   tab = []
   # LATEX IT
-  for ((bn, q), (bnd, l)) in zip(quartz_logs, lopt_logs):
-    print("bench = ", bn)
-    (q0, qf, gtq, gqf) = cols_from_log(q)
+  qpcts = []
+  lpcts = []
+  ratsizes = []
+  ratios = []
+  for (bn, q, l) in zip(names, queso_logs, lopt_logs):
+    (qf, tf) = q
     (l0, lf, gtl, glf) = cols_from_log(l)
-    qfile = get_out_file (bn, Tool.quartz, gate_set)
-    lfile = get_out_file (bn, Tool.lopt, gate_set)
-    assert(bn == bnd)
-    im = (1 - (float(lf)/float(qf))) * 100
-    if gtl == 0.0:
-      print(Colors.RED, bn, Colors.RESET)
-    elif (q0 == l0):
-      tab.append([bn, q0, qf, lf, qisk.get_cx_count_fast(get_bench_file(bn, gate_set)), qisk.get_cx_count_fast(qfile), qisk.get_cx_count_fast(lfile)])
+    q0 = l0
+    qpct = 0
+    lpct = 0
+    if q0 != lf:
+      lpct = (round(float(lf-q0)/q0, 2) * 100)
+    if q0 != qf:
+      qpct = (round(float(qf-q0)/q0, 2) * 100)
+    qrate = abs(round(float(qf - q0)/tf, 2))
+    lrate = abs(round(float(lf - q0)/gtl, 2))
+    if qrate == 0:
+      rat = 1.0
+    else:
+      rat = round((lrate)/ (qrate), 2)
+    pctdiff = round((float(lf)/float(qf)) - 1.0, 2) * 100
+    qpcts.append(qpct)
+    lpcts.append(lpct)
+    ratsize = round(float(qf)/float(lf), 2)
+    ratios.append(rat)
+    ratsizes.append(ratsize)
+    if lf < qf:
+      lf = "\\textbf{" + str(lf) + "}"
+    elif lf > qf:
+      qf = "\\textbf{" + str(qf) + "}"
+    tab.append([bn, q0, str(qf) + " (%d\%%)" %(qpct), str(lf) + " (%d\%%)" %(lpct), str(ratsize) + "x", qrate, lrate, str(rat) + "x", int(gtl), tf])
+
+  custom_header = (
+        " &  & \\multicolumn{3}{c}{Output Size and Improvement} &  \\multicolumn{3}{c}{Optimization Rate (gates/sec)} & &  \\\\ \\cmidrule(lr){3-5} \\cmidrule(lr){6-8}\n"
+        "  Benchmark & Input Size & QS & S & QS/S & QS & S & S/QS  & Time (s) & QS Time (s) \\\\ \n"
+    )
+
+  def find_line_position(input_string):
+      first_newline_index = input_string.find('\n')
+      return first_newline_index
+  def mean(x):
+    x = [abs(y)for y in x]
+    return str(round(gmean(x), 2))
+  def meanp(x):
+    x = [1 + abs(y)for y in x]
+    return str(round(gmean(x), 2))
+  ltab = tabulate(tab, tablefmt="latex_raw")
+  pos = find_line_position(ltab)
+  # insert header manually
+  ltab = "\\begin{tabular}{rccccccccc}" + "\n" + custom_header + ltab[pos:]
+  ltab = ltab.replace('hline', 'midrule')
+  mean_row = "\\textbf{geomean} & & & & %s & &  & %s & & \n"%(mean(ratsizes), meanp(ratios))
+  last = "\end{tabular}"
+  ltab = ltab.replace(last, mean_row + last)
+  ext = "%s.%s.tex"%("queso", Tool.extension())
+  with open("prelim" + ext, "w") as f:
+    f.write(ltab)
+  print("filename", "prelim" + ext)
+
+def create_tables (curr_list, names, write, gate_set):
+  quartz_logs = list (map(lambda x: log_from_bench(x, Tool.quartz, gate_set), curr_list))
+  lopt_logs = list (map(lambda x: log_from_bench(x, Tool.lopt, gate_set), curr_list))
+  headers = ["Name", "Input Size", "Q", "S", "Q/S", "Q", "S", "S/Q",  "Time (s)"]
+  tab = []
+  # LATEX IT
+  qpcts = []
+  lpcts = []
+  ratsizes = []
+  ratios = []
+  for (bn, q, l) in zip(names, quartz_logs, lopt_logs):
+    (l0, lf, gtl, glf) = cols_from_log(l)
+    (qtimes, qsizes, qtimes2, _) = split(q[0], q[1], gtl)
+    if (bn.startswith('hhl_n5')) and len(qsizes) >= 2:
+      qsizes = qsizes[1:]
+    elif (bn.startswith('hhl_n13')):
+      qsizes = [l0]
+    (q0, qf) = (qsizes[0], qsizes[-1])
+    if q0 < 1000:
+      continue
+    elif (q0 == l0 or l0 == 0):
+      if len(qtimes2) == 0 and not (gtl >= 10000 and qtimes[-1] >= 10000):
+        print("quartz hasn't run for this time", gtl, qtimes[-1])
+        print(Colors.RED, bn, Colors.RESET)
+      qpct = 0
+      lpct = 0
+      if q0 != lf:
+        lpct = (round(float(lf-q0)/q0, 2) * 100)
+      if q0 != qf:
+        qpct = (round(float(qf-q0)/q0, 2) * 100)
+      qrate = abs(round(float(qf - q0)/gtl, 2))
+      lrate = abs(round(float(lf - q0)/gtl, 2))
+      if qrate == 0:
+        rat = 1.0
+      else:
+        rat = round((lrate)/ (qrate), 2)
+      pctdiff = round((float(lf)/float(qf)) - 1.0, 2) * 100
+      qpcts.append(qpct)
+      lpcts.append(lpct)
+      ratsize = round(float(qf)/float(lf), 2)
+      ratios.append(rat)
+      ratsizes.append(ratsize)
+      if lf < qf:
+        lf = "\\textbf{" + str(lf) + "}"
+      tab.append([bn, q0, str(qf) + " (%d\%%)" %(qpct), str(lf) + " (%d\%%)" %(lpct), str(ratsize) + "x", qrate, lrate, str(rat) + "x", int(gtl)])
     else:
       print(Colors.RED, bn, q0, l0, Colors.RESET)
 
   tab_len = len(tab)
-  if (len(tab) > 30 and write):
+  if (len(tab) > 30 and write and False):
     h = int(tab_len/2)
     tab1 = tab[0:h]
     tab2 = tab[h:]
     ltab1 = tabulate(tab1, headers=headers, tablefmt="latex")
     ltab2 = tabulate(tab2, headers=headers, tablefmt="latex")
-    ext = gate_set.value + ".tex"
+    ext = gate_set.value + ".%s.tex"%(Tool.extension())
     with open("prelim1" + ext, "w") as f:
       f.write(ltab1)
     with open("prelim2" + ext, "w") as f:
       f.write(ltab2)
+    print("filenames", "prelim1" + ext, "prelim2" + ext)
   else:
-    print(tab)
-    print("not the case yet")
+    custom_header = (
+        " &  & \\multicolumn{3}{c}{Output Size and Improvement} &  \\multicolumn{3}{c}{Optimization Rate (gates/sec)} &  \\\\ \\cmidrule(lr){3-5} \\cmidrule(lr){6-8}\n"
+        "  Benchmark & Input Size & Q & S & Q/S & Q & S & S/Q  & Time (s) \\\\ \n"
+    )
+
+    def find_line_position(input_string):
+      first_newline_index = input_string.find('\n')
+      return first_newline_index
+    def mean(x):
+      x = [abs(y)for y in x]
+      return str(round(gmean(x), 2))
+    ltab = tabulate(tab, tablefmt="latex_raw")
+    pos = find_line_position(ltab)
+    # insert header manually
+    ltab = "\\begin{tabular}{rcccccccc}" + "\n" + custom_header + ltab[pos:]
+    ltab = ltab.replace('hline', 'midrule')
+    mean_row = "\\textbf{geomean} & & & & %s & &  & %s & \n"%(mean(ratsizes), mean(ratios))
+    last = "\end{tabular}"
+    ltab = ltab.replace(last, mean_row + last)
+    ext = gate_set.value + ".%s.tex"%(Tool.extension())
+    with open("prelim" + ext, "w") as f:
+      f.write(ltab)
+    print("filename", "prelim" + ext)
 
 
 def create_swap_count(c, gate_set):
@@ -529,16 +731,40 @@ def filter_fm (p, c):
 bench_list = sorted(listdir('benchmarks'))
 bench_list.remove('make')
 bench_list.remove('original')
-bench_list.remove('vqe_n24')
-bench_list.remove('shor_n5')
-bench_list.remove('barenco_tof_10')
+# bench_list.remove('vqe_n24')
+# bench_list.remove('grover_n11_from_python')
+# bench_list.remove('grover_n7_from_python')
+# bench_list.remove('barenco_tof_10')
 bench_list.remove('gf2^128_mult')
 bench_list.remove('gf2^163_mult')
 bench_list.remove('gf2^131_mult')
 bench_list.remove('gf2^64_mult')
+def filter_bn (b, bn):
+	filtered = [s for s in b if s.startswith(bn)]
+	return filtered
 
+# curr_list = ["adder_8"]
 curr_list = []
+curr_list += ["ham15-med", "ham15-high"]
+name_list = curr_list.copy()
+for fam in [Family.hhl, Family.gf, Family.grover, Family.qftqis, Family.shor, Family.vqe]:
+  curr_list += Family.ls (fam)
+  name_list += Family.lslabels(fam)
+  # if fam == Family.hhl:
+  #   curr_list += ["hwb6"]
+  #   name_list += ["hwb6"]
+  # elif fam == Family.grover:
+  #   curr_list += ["mod5_4"]
+  #   name_list += ["mod5_4"]
 
+print(curr_list)
+# print(create_tables(curr_list, name_list, True, GateSet.nam))
+# curr_list.remove("hhl_n11_from_python")
+# # curr_list.remove("vqe_n24_from_python")
+# name_list.remove("hhl\\_n11")
+# # name_list.remove("vqe\\_n24")
+# print(create_queso_tables(curr_list, name_list, True))
+#
 # curr_list += ['hhl_n5_from_python', 'multiplier_n45', 'multiplier_n75', 'qaoa_n6', 'qaoa_n6_from_python', 'qaoa_n8_from_python', 'qft_n16_from_python', 'qft_n18', 'qft_n24_from_python', 'qft_n29', 'qft_n30_from_python', 'qft_n4_from_python', 'qft_n8_from_python', 'shor_7_mod_15_n12_from_python', 'shor_7_mod_15_n16_from_python', 'shor_7_mod_15_n18_from_python', 'shor_7_mod_15_n8_from_python']
 # #
 # curr_list += ['adder_8', 'barenco_tof_3', 'barenco_tof_4', 'barenco_tof_5', 'csla_mux_3', 'csum_mux_9', 'gf2^10_mult', 'gf2^16_mult', 'gf2^32_mult', 'gf2^4_mult', 'gf2^5_mult', 'gf2^6_mult', 'gf2^7_mult', 'gf2^8_mult', 'gf2^9_mult', 'grover_5', 'grover_n15_from_python', 'grover_n3_from_python', 'grover_n5_from_python', 'grover_n9_from_python', 'ham15-high', 'ham15-low', 'ham15-med', 'hhl_n10', 'hhl_n7_from_python', 'hwb6', 'rc_adder_6']
@@ -551,7 +777,24 @@ curr_list = []
 # bench_list = remove_bench(bench_list, "csla")
 # bench_list = remove_bench(bench_list, "qcla")
 # bench_list = remove_bench(bench_list, "gf")
-# print(create_tables(bench_list, True, GateSet.nam))
+
+def fexists(bn):
+  pref = "benchmarks/%s/%s"%(bn, bn) + (".lopt.%s.log"%(Tool.extension()))
+  print(pref)
+  return os.path.isfile(pref)
+
+def retrieve_missing(fam_list):
+  missing = []
+  for fam in fam_list:
+    vars = Family.ls (fam)
+    for x in vars:
+      if not fexists(x):
+        missing.append(x)
+  return missing
+
+lin_families = [Family.lin_grover, Family.lin_hhl, Family.lin_vqe, Family.lin_shor, Family.lin_qftqis]
+plot_times(lin_families, GateSet.nam)
+
 # #
 
 
@@ -590,5 +833,5 @@ curr_list = []
 # curr_list = filter_fm("vqe", bench_list)
 # print(plot_size(curr_list, GateSet.nam, "vqe"))
 
-curr_list = ['qaoa_n10_p4' ,'qaoa_n12_p4' ,'qaoa_n14_p4' ,'qaoa_n16_p4' ,'qaoa_n20_p4' ,'qaoa_n22_p4' ,'qaoa_n8_p4' ,'qaoa_n24_p4' ,'qaoa_n26_p4' ,'qaoa_n28_p4' ,'qaoa_n30_p4' ,'qaoa_n4_p4' ,'qaoa_n18_p4' ,'qaoa_n6_p4']
-print(plot_size(curr_list, GateSet.clifft, "qaoa"))
+# curr_list = ['qaoa_n10_p4' ,'qaoa_n12_p4' ,'qaoa_n14_p4' ,'qaoa_n16_p4' ,'qaoa_n20_p4' ,'qaoa_n22_p4' ,'qaoa_n8_p4' ,'qaoa_n24_p4' ,'qaoa_n26_p4' ,'qaoa_n28_p4' ,'qaoa_n30_p4' ,'qaoa_n4_p4' ,'qaoa_n18_p4' ,'qaoa_n6_p4']
+# print(plot_size(curr_list, GateSet.clifft, "qaoa"))
