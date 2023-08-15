@@ -8,7 +8,7 @@ struct
     let
       val l =
         case !r of
-          [] => [(it, isz), (Time.now (), isz)]
+          [] => [(it, 0), (Time.now (), 0)]
         | (t, fsz)::_ => (it, 0)::(List.rev ((Time.now(), fsz)::(!r)))
       val s = (Seq.fromList l)
       val s' = Seq.map (fn (t, sz) => (Time.toReal (Time.-(t, it)), isz - sz)) s
@@ -152,7 +152,7 @@ fun apply_ (t, tsz) c timeout log =
     res
   end
 
-fun apply_greedy (st, log) c =
+fun apply_greedy (st, log) (c, topt) =
   case st of
     NONE => raise Unintialized
   | SOME st =>
@@ -162,8 +162,12 @@ fun apply_greedy (st, log) c =
         case Seq.nth st pid of
           GREEDY x => x
         | BOTH {greedy, all} => greedy
+      val t =
+        case topt of
+          SOME t => ~1 * (Real.ceil (Time.toReal t))
+        | NONE => 0
     in
-      apply_ tfer c 0 log
+      apply_ tfer c t log
     end
 
 fun apply_all (st, log) (c, timeout) =
@@ -181,12 +185,34 @@ fun apply_all (st, log) (c, timeout) =
             SOME c' => loop_apply c' (cnt + 1)
           | NONE => if cnt = 0 then NONE else SOME c *)
       (* loop_apply c 0 *)
-    val to = Real.trunc (Time.toReal timeout)
+    val to = Real.ceil (Time.toReal timeout)
     in
       apply_ tfer c to log
     end
 
-val best_equivalent = apply_greedy
+fun apply_both (st, log) (c, timeout) =
+  let
+    val (res, tm) = Util.getTime (fn _ => apply_greedy (st, log) (c, SOME timeout))
+    val rem = Time.- (timeout, tm)
+    val str_time = Real.toString o Time.toReal
+    val _ = print ("rem = " ^ (str_time rem) ^ "\n")
+    (* fun loop_apply c cnt =
+      case apply_ tfer c timeout of
+          SOME c' => loop_apply c' (cnt + 1)
+        | NONE => if cnt = 0 then NONE else SOME c *)
+    (* loop_apply c 0 *)
+  in
+    if (Time.< (rem, Time.zeroTime)) then res
+    else
+      case res of
+        SOME c' =>
+          (case apply_all (st, log) (c', rem) of
+            NONE => SOME c'
+          | SOME c'' => SOME c'')
+      | NONE => apply_all (st, log) (c, rem)
+  end
+
+fun best_equivalent (st, log) c = apply_greedy (st, log) (c, NONE)
 
 fun max_breadth x = 5
 val sz = CommandLineArgs.parseInt "size" 6

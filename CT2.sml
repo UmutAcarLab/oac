@@ -263,18 +263,40 @@ struct
         in
           (TwoOPT.optlog rellog) ^ "\n" ^ ("(" ^ (Real.toString t) ^ ", " ^ (Int.toString szg) ^ ");\n")
         end
-
       val _ = WriteFile.dump (logfile, logstr)
     in
       if print_out then TwoOPT.dump c'' outfile
       else ()
     end
 
+  fun comb_opt (wt) =
+    let
+      val c =
+        let val nppc = (TwoOPT.from_qasm qasm_file) in
+          if no_preprocess then nppc
+          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
+        end
+      val _ = print ("circuit size after preprocessing = " ^ (Int.toString (TwoOPT.size c)) ^ "\n")
+      val rellog = (Time.now(), TwoOPT.size c)
+      val (c', tm) = Util.getTime (fn _ => TwoOPT.combined_opt c wt timeout)
+      val final_size = TwoOPT.size c'
+      val _ = print ("combined shrank circuit by " ^ (Int.toString (final_size - TwoOPT.size c) ^ "\n"))
+      val _ = print ("new size =  " ^ (Int.toString (final_size) ^ "\n"))
+      val logstr = (TwoOPT.optlog rellog) ^  "\n" ^ ("(" ^ (Real.toString (Time.toReal tm)) ^  ", " ^ (Int.toString final_size) ^ ");\n")
+      val _ = WriteFile.dump (logfile, logstr)
+    in
+      if print_out then TwoOPT.dump c' outfile
+      else ()
+    end
+
+
+
 end
 
 
 val _ = if CLA.isArg "pponly" then Experiment.preprocess ()
         else if CLA.isArg "greedyonly" then Experiment.greedy_optimize()
+        else if CLA.isArg "wtcomb" then Experiment.comb_opt(CLA.parseReal "wtcomb" 0.0)
         else Experiment.optimize()
 
 (* val _ = TwoOPT.cprint c *)
