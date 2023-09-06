@@ -14,6 +14,7 @@ sig
   val preprocess : circuit -> circuit
   val greedy_optimize : circuit -> Time.time -> circuit
   val search : circuit -> Time.time -> circuit
+  val combined_opt : circuit -> real -> Time.time -> circuit
   val size : circuit -> int
   val cost : circuit -> int
   val dump : circuit -> string -> unit

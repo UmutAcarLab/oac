@@ -212,8 +212,9 @@ struct
       else NONE
     end
 
-  val apply_greedy = best_equivalent
+  fun apply_greedy t (c, _) = best_equivalent t c
   fun apply_all t (c, _) = NONE
+  fun apply_both t (c, _) = NONE
   fun optlog _ = raise Unimplemented
 
 end

@@ -6,6 +6,7 @@ sig
   val preprocess : BlackBoxOpt.t -> circuit -> circuit
   val greedy_optimize : BlackBoxOpt.t -> circuit -> Time.time -> circuit
   val search : BlackBoxOpt.t -> circuit -> Time.time -> circuit
+  val combined_opt : BlackBoxOpt.t -> circuit -> real -> Time.time -> circuit
 end
 
 functor VerticalMeldFun (structure BlackBoxOpt : BLACK_BOX_OPT) : MELD_OPT =
@@ -121,7 +122,7 @@ struct
       val _ = print ("ttals = " ^ (str_time total) ^ "\n")
       val (cseq_opt, spent) = Util.getTime (fn _ => timed_map (wt, total) (fn c => case (optfun (c, wt)) of SOME c' => c' | NONE => c, fn c => c) cseq)
       val rem = Time.- (total, spent)
-      val _ = print ("rem = " ^ (str_time rem) ^ "\n")
+      (* val _ = print ("rem = " ^ (str_time rem) ^ "\n") *)
       val (copt, spent) = Util.getTime (fn _ => meldSeq (wsz, wt, rem) optfun cseq_opt)
       val rem = Time.- (rem, spent)
       (* calculate new window time wt', s.t., wt' >= 2 * wt.
@@ -129,7 +130,7 @@ struct
        * all the remaining time will be spent in the recursive call.
        * To estimate, I guess that time spent scales linearly to wt.
       *)
-      val _ = print ("rem = " ^ (str_time rem) ^ "\n")
+      (* val _ = print ("rem = " ^ (str_time rem) ^ "\n") *)
 
       val wt' =
         let
@@ -146,29 +147,41 @@ struct
       else apply_opt_seq repeat (P {wsz = wsz, grain = grain, wdtime = SOME wt', total = rem}) optfun copt
     end
 
-  (* fun apply_opt_seq' (wsz, grain) (optfun : oracle) c =
+  fun apply_opt_seq' (P {wsz, grain, wdtime, total}) (optfun : oracle) c =
     let
-      val meld = meld wsz optfun
-      fun meld_seq (c1, c2) =
-        case stepMeld wsz optfun (c1, c2) of
-          OPT c => c
-        | MELD {prefix, window, suffix} => meld_seq (meld_seq (prefix, window), suffix)
+      fun scale_time t k = Time.fromReal (Time.toReal t * (Real.fromInt k))
+      val wdtime = Option.valOf wdtime
+      val meld_time = scale_time wdtime 2
+      val moptfun = fn c => optfun(c, meld_time)
+      val grain_time = scale_time wdtime (Int.div(grain, wsz))
+      val goptfun = fn c => optfun(c, grain_time)
+      val start = Time.now()
 
-      fun absorb c1 c2 =
-        if Circuit.size c2 = 0 then c1
+      fun check_time t = Time.<= (Time.- (Time.now (), start), Time.- (total, t))
+
+      fun meld_seq (c1, c2) =
+        if check_time (meld_time) then
+          case stepMeld wsz moptfun (c1, c2) of
+            OPT c => c
+          | MELD {prefix, window, suffix} => meld_seq (meld_seq (prefix, window), suffix)
+        else Circuit.prepend (c1, c2)
+
+      fun absorb c1 c2  =
+        if not(check_time (grain_time)) then Circuit.prepend(c1, c2)
+        else if Circuit.size c2 = 0 then c1
         else let
           val (c2p, c2s) = Circuit.split c2 (Int.min (grain, Circuit.size c2))
         in
-          case optfun c2p of
+          case goptfun c2p of
             NONE => absorb (Circuit.prepend (c1, c2p)) c2s
           | SOME c2p' => absorb (meld_seq (c1, c2p')) c2s
         end
     in
       absorb (Circuit.from_raw_sequence (Circuit.num_qubits c, Seq.empty())) c
-    end *)
+    end
 
 
-  fun gvopt bbopt (c, t) = BlackBoxOpt.apply_greedy bbopt c
+  fun gvopt bbopt (c, t) = BlackBoxOpt.apply_greedy bbopt (c, NONE)
 
   fun vopt bbopt (c, t) =
     (print ("circuit size = " ^ Int.toString (Circuit.size c) ^ "\n");
@@ -209,4 +222,39 @@ struct
     in
       apply_opt_seq true (P {wsz = wsz, grain = grain, wdtime = wt, total = timeout}) (vopt bbopt) c
     end
+
+  fun gcvopt bbopt (c, t) = BlackBoxOpt.apply_greedy bbopt (c, SOME t)
+  fun cvopt bbopt (c, t) = BlackBoxOpt.apply_all bbopt (c, t)
+
+  fun combined_opt bbopt c (gt : real) timeout =
+    let
+      val nq = Circuit.num_qubits c
+      val wsz = nq * (BlackBoxOpt.max_size bbopt 1)
+      val grain =
+        let
+          val gi = CLA.parseInt "grain" (10 * wsz)
+        in
+          if gi >= 1600 then (1 + 1000 div wsz) * wsz
+          else gi
+        end
+      val wt = SOME (Time.fromReal (gt * (Real.fromInt wsz)))
+      val (c', tm) =
+        Util.getTime (fn _ => apply_opt_seq' (P {wsz = wsz, grain = grain, wdtime = wt, total = timeout}) (gcvopt bbopt) c)
+      val _ = print ("greedy done opts = " ^ (Int.toString(Circuit.size c' - Circuit.size c) ^ "\n"))
+      val gtspent = Real./ (Time.toReal tm, Real.fromInt (Circuit.size c))
+      val gt = Real.- (gt, gtspent)
+      val wsz =  Int.min (nq * (BlackBoxOpt.max_size bbopt 1), 20)
+      val _ = print ("total time (per gate) remaining = " ^ (Real.toString gt) ^ "\n")
+      val grain = CLA.parseInt "grain" (2 * wsz)
+      val wtr = (gt * (Real.fromInt wsz))
+      val c'' =
+        if wtr >= 1.0 then
+          apply_opt_seq'
+            (P {wsz = wsz, grain = grain, wdtime = SOME (Time.fromReal wtr), total = Time.-(timeout, tm)})
+            (cvopt bbopt) c'
+        else c'
+    in
+      c''
+    end
+
 end
