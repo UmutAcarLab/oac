@@ -66,10 +66,8 @@ struct
     else if (Circuit.size c2 = 0) then OPT (c1)
     else let
       val c1 = if CLA.isArg "rl" then Circuit.right_leaning c1 else c1
-      (* val (c1p, c1s) = Circuit.splitEnd c1 (Int.min (wsz, Circuit.size c1)) *)
-      (* val (c2p, c2s) = Circuit.split c2 (Int.min (wsz, Circuit.size c2)) *)
-      val (c1p, c1s) = Circuit.splitDepthEnd c1 (wsz)
-      val (c2p, c2s) = Circuit.splitDepth c2 (wsz)
+      val (c1p, c1s) = Circuit.splitEnd c1 (Int.min (wsz, Circuit.size c1))
+      val (c2p, c2s) = Circuit.split c2 (Int.min (wsz, Circuit.size c2))
       val cwd = Circuit.prepend (c1s, c2p)
     in
       case (optfun cwd) of
@@ -258,3 +256,5 @@ struct
     end
 
 end
+
+
