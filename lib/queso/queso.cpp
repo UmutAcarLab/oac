@@ -106,7 +106,7 @@ void stopVM_ (unsigned char* td_) {
   JNIEnv* env = td->env;
   jobject wrapObj = td->wrapObj;
   env->DeleteGlobalRef(wrapObj);
-  env->DetachCurrentThread();
+  quesoVM->DetachCurrentThread();
   quesoVM->DestroyJavaVM();
 }
 
