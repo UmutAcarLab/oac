@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <cstring>
 #include "queso_api.h"
 
 JavaVM* quesoVM;
@@ -18,9 +19,10 @@ void startVM_ () {
   JNIEnv* env;
   JavaVMInitArgs vmArgs;
   JavaVMOption options[2];
-  const char* jarFilePath = "../../queso/SymbolicOptimizer-1.0-SNAPSHOT-jar-with-dependencies.jar";
-  options[0].optionString = "-Djava.class.path=SymbolicOptimizer-1.0-SNAPSHOT-jar-with-dependencies.jar"; // Specify the path to your JAR file
-  options[1].optionString = "--enable-preview"; // Specify the path to your JAR file
+  char jar_file_opt[] = "-Djava.class.path=lib/queso/SymbolicOptimizer-1.0-SNAPSHOT-jar-with-dependencies.jar";
+  char preview_opt[] = "--enable-preview";
+  options[0].optionString = jar_file_opt;
+  options[1].optionString = preview_opt;
   vmArgs.version = JNI_VERSION_1_8;
   vmArgs.nOptions = 2;
   vmArgs.options = options;
@@ -29,7 +31,7 @@ void startVM_ () {
   jint result = JNI_CreateJavaVM(&quesoVM, (void**)&env, &vmArgs);
   if (result != JNI_OK) {
     std::cerr << "Failed to create JVM" << std::endl;
-    return NULL;
+    return;
   }
   quesoVM->DetachCurrentThread();
 }
@@ -37,10 +39,10 @@ void startVM_ () {
 void initialize_ (const char* eqset_fn_, const char* symb_eqset_fn_, unsigned char** td_store){
   JNIEnv* env;
   std::cout << "attaching\n"<<std::endl;
-  jint result = quesoVM->AttachCurrentThread((void**)&env, NULL)
+  jint result = quesoVM->AttachCurrentThread((void**)&env, NULL);
   if (result != JNI_OK) {
     std::cerr << "Failed to attach to quesoVM" << std::endl;
-    return NULL;
+    return;
   }
 
   jclass wrapClass = env->FindClass("Wrapper");
@@ -69,17 +71,43 @@ int write_qasm_to_buffer (const char* cqasm, char* buffer, int buff_size) {
 }
 
 int opt_circuit_ (const char* cqasm_, int timeout, char* buffer, int buff_size, unsigned char* td_) {
+  std::cout << "optimizing" << std::endl;
   ThreadData* td = (ThreadData*)td_;
   JNIEnv* env = td->env;
   jobject wrapObj = td->wrapObj;
+  std::cout<<"wrap obj = " << wrapObj << std::endl;
 
   jclass wrapClass = env->FindClass("Wrapper");
-  jmethodID optFunc = (env)->GetMethodID(wrapClass, "optimize", "(Ljava/lang/String;ZLjava/lang/Integer;)Ljava/lang/String;");
+  jmethodID optFunc = (env)->GetMethodID(wrapClass, "optimize", "(Ljava/lang/String;ZI)Ljava/lang/String;");
+  std::cout<<"optFunc = " << optFunc << std::endl;
 
   jstring cqasm = (env)->NewStringUTF(cqasm_);
-  jstring result = (jstring)(env)->CallObjectMethod(wrapObj, optFunc, cqasm, timeout < 0, abs(timeout));
+  jint tm = abs(timeout);
+  jboolean all = timeout < 0 ? JNI_FALSE : JNI_TRUE;
+  std::cout<<"changed args" << std::endl;
+  std::cout<<"timeout = " << timeout << std::endl;
+  // std::cout<<"qasm = " << cqasm_ << std::endl;
+  jstring result = (jstring)(env)->CallObjectMethod(wrapObj, optFunc, cqasm, all, tm);
+  if (result == NULL) {
+    jthrowable exc = env->ExceptionOccurred();
+    if (exc) {
+      env->ExceptionDescribe();
+      env->ExceptionClear();
+      std::cerr << "Exception occurred while loading class " << "Applier" << std::endl;
+    }
+  }
   const char *resultStr = (env)->GetStringUTFChars(result, NULL);
   return write_qasm_to_buffer(resultStr, buffer, buff_size);
+}
+
+
+void stopVM_ (unsigned char* td_) {
+  ThreadData* td = (ThreadData*)td_;
+  JNIEnv* env = td->env;
+  jobject wrapObj = td->wrapObj;
+  env->DeleteGlobalRef(wrapObj);
+  env->DetachCurrentThread();
+  quesoVM->DestroyJavaVM();
 }
 
 // void opt_circuit_ (JNIEnv* env, jobject wrapObject, jclass wrapClass, std::string filename) {
