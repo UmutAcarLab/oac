@@ -206,6 +206,7 @@ struct
   val outfile = CLA.parseString "outfile" "out.qasm"
   val no_preprocess = CLA.isArg "nopp"
   val timeout = Time.fromReal (Real.fromInt (CLA.parseInt "timeout" 3600))
+  val writeLog = CLA.isArg "logfile"
   val logfile = CLA.parseString "logfile" "out.lopt.log"
 
   val circ_name =
@@ -231,7 +232,7 @@ struct
       val c' = Benchmark.run "greedy optimization" (fn _ => TwoOPT.greedy_optimize c timeout)
       val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
       print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
-      val _ = WriteFile.dump ("logs/" ^ (circ_name)^".greedy.log", (TwoOPT.optlog rellog) ^ "\n")
+      val _ = if writeLog then WriteFile.dump ("logs/" ^ (circ_name)^".greedy.log", (TwoOPT.optlog rellog) ^ "\n") else ()
     in
       if print_out then TwoOPT.dump c' outfile
       else ()
@@ -263,7 +264,7 @@ struct
         in
           (TwoOPT.optlog rellog) ^ "\n" ^ ("(" ^ (Real.toString t) ^ ", " ^ (Int.toString szg) ^ ");\n")
         end
-      val _ = WriteFile.dump (logfile, logstr)
+      val _ = if writeLog then WriteFile.dump (logfile, logstr) else ()
     in
       if print_out then TwoOPT.dump c'' outfile
       else ()
@@ -283,7 +284,7 @@ struct
       val _ = print ("combined shrank circuit by " ^ (Int.toString (final_size - TwoOPT.size c) ^ "\n"))
       val _ = print ("new size =  " ^ (Int.toString (final_size) ^ "\n"))
       val logstr = (TwoOPT.optlog rellog) ^  "\n" ^ ("(" ^ (Real.toString (Time.toReal tm)) ^  ", " ^ (Int.toString final_size) ^ ");\n")
-      val _ = WriteFile.dump (logfile, logstr)
+      val _ = if writeLog then WriteFile.dump (logfile, logstr) else ()
     in
       if print_out then TwoOPT.dump c' outfile
       else ()
