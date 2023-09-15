@@ -19,7 +19,7 @@ void startVM_ () {
   JNIEnv* env;
   JavaVMInitArgs vmArgs;
   JavaVMOption options[2];
-  char jar_file_opt[] = "-Djava.class.path=lib/queso/SymbolicOptimizer-1.0-SNAPSHOT-jar-with-dependencies.jar";
+  char jar_file_opt[] = "-Djava.class.path=lib/queso/QUESO/SymbolicOptimizer-1.0-SNAPSHOT-jar-with-dependencies.jar";
   char preview_opt[] = "--enable-preview";
   options[0].optionString = jar_file_opt;
   options[1].optionString = preview_opt;
@@ -71,21 +71,21 @@ int write_qasm_to_buffer (const char* cqasm, char* buffer, int buff_size) {
 }
 
 int opt_circuit_ (const char* cqasm_, int timeout, char* buffer, int buff_size, unsigned char* td_) {
-  std::cout << "optimizing" << std::endl;
+  // std::cout << "optimizing" << std::endl;
   ThreadData* td = (ThreadData*)td_;
   JNIEnv* env = td->env;
   jobject wrapObj = td->wrapObj;
-  std::cout<<"wrap obj = " << wrapObj << std::endl;
+  // std::cout<<"wrap obj = " << wrapObj << std::endl;
 
   jclass wrapClass = env->FindClass("Wrapper");
   jmethodID optFunc = (env)->GetMethodID(wrapClass, "optimize", "(Ljava/lang/String;ZI)Ljava/lang/String;");
-  std::cout<<"optFunc = " << optFunc << std::endl;
+  // std::cout<<"optFunc = " << optFunc << std::endl;
 
   jstring cqasm = (env)->NewStringUTF(cqasm_);
   jint tm = abs(timeout);
   jboolean all = timeout < 0 ? JNI_FALSE : JNI_TRUE;
-  std::cout<<"changed args" << std::endl;
-  std::cout<<"timeout = " << timeout << std::endl;
+  // std::cout<<"changed args" << std::endl;
+  // std::cout<<"timeout = " << timeout << std::endl;
   // std::cout<<"qasm = " << cqasm_ << std::endl;
   jstring result = (jstring)(env)->CallObjectMethod(wrapObj, optFunc, cqasm, all, tm);
   if (result == NULL) {
