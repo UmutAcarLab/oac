@@ -16,7 +16,6 @@ struct
       val s = (Seq.fromList l)
       val s' = Seq.map (fn (t, sz) => (Time.toReal (Time.-(t, it)), isz - sz)) s
       val ss' = Seq.map (fn (t, sz) => "(" ^ (Real.toString t) ^ ", " ^ (Int.toString sz) ^ ");") s'
-      val _ = print ("queso time = " ^ (time_str t) ^ "\n")
     in
       Seq.reduce (fn (a, b) => a ^ b) "" ss'
     end
@@ -105,7 +104,7 @@ fun apply_ greedy (SOME td, log) c timeout =
           (* val _ = print ("back from queso = " ^ (seq_to_str charseq)) *)
           val (c' : Circuit.raw_circuit) = Circuit.from_qasm (charseq)
           val szd = (Circuit.cost_raw c' - Circuit.cost c)
-          val _ = print ("Circuit optimzied from " ^ (Int.toString (Circuit.cost c) ^ " to " ^ (Int.toString(Circuit.cost_raw c')) ^ "\n"))
+          val _ = print ("Circuit optimized from " ^ (Int.toString (Circuit.cost c) ^ " to " ^ (Int.toString(Circuit.cost_raw c')) ^ "\n"))
         in
           if (szd >= 0) then (NONE, szd)
           else (SOME (Circuit.reindex (c', c)), szd)
@@ -114,7 +113,9 @@ fun apply_ greedy (SOME td, log) c timeout =
     val cqasm = (Circuit.to_qasm c) ^ (String.str (Char.chr 0))
     val timeout = Real.ceil (Time.toReal timeout)
     val stimeout = if greedy then (~1 * timeout) else timeout
-    val cqasm' = call_queso (fn (b, bsize) => ffi_optimize (cqasm, stimeout, b, bsize, td)) cqasm
+    val _ = print ("timeout given = " ^ (Int.toString stimeout)^ "\n")
+    val (cqasm', tm) = Util.getTime (fn _ => call_queso (fn (b, bsize) => ffi_optimize (cqasm, stimeout, b, bsize, td)) cqasm)
+    val _ = print ("time taken = " ^ (Real.toString (Time.toReal tm)) ^ "\n")
     val (res, sd) = select (c, cqasm')
     val _ = if (Option.isSome res) then Log.register_opt (log, ~sd) else ()
   in
