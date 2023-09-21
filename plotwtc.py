@@ -4,7 +4,7 @@ import os
 from tabulate import tabulate
 from os import listdir
 from enum import Enum
-import qiskit_api as qisk
+# import qiskit_api as qisk
 from scipy.stats import linregress
 from scipy.interpolate import interp1d
 import numpy as np
@@ -21,12 +21,19 @@ class GateSet (Enum):
 class Tool (Enum):
   quartz = 1
   lopt = 2
+  queso = 3
 
   def extension ():
-    return "0.01"
+    # return "." + "0.01" + "."
+    return ""
+  def config() :
+    return ".queso."
+
   def name (t):
     if t == Tool.quartz:
       return "quartz"
+    elif t == Tool.queso:
+      return "queso"
     else:
       return "lopt.0.01"
 
@@ -68,6 +75,28 @@ def parse_data (d):
 def read_file(f):
   with open (f) as file:
     return file.read()
+
+def read_queso_log (f):
+  d = read_file (f)
+  print(d)
+  rows = d.split("\n")
+  print(d)
+  data_points = rows[0].split(";")
+  data_points.pop()
+  time_values = []
+  circuit_size_values = []
+  def parse_point (p):
+    values = p.strip("()").split(",")
+    return (float(values[0]), int(float(values[1])))
+  for point in data_points:
+    (tv, szv) = parse_point(point)
+    time_values.append(tv)
+    circuit_size_values.append(szv)
+  gt = None
+  # gt = parse_point(rows[1].split(";")[0])[0]
+  gv = None
+  # gv = parse_point(rows[1].split(";")[0])[1]
+  return (circuit_size_values, time_values, gt, gv)
 
 def read_quartz_log (f):
   d = read_file (f)
@@ -116,19 +145,19 @@ def read_local_log (f):
   gv = parse_point(rows[1].split(";")[0])[1]
   return (time_values, circuit_size_values, gt, gv)
 
-def read_queso_log (f):
-  import re
-  log_line = read_file(f)
-  # Extract the numbers using regular expressions
-  seconds_match = re.search(r'optimized in ([\d.]+) seconds', log_line)
-  gate_count_match = re.search(r'Final gate count: (\d+)', log_line)
+# def read_queso_log (f):
+#   import re
+#   log_line = read_file(f)
+#   # Extract the numbers using regular expressions
+#   seconds_match = re.search(r'optimized in ([\d.]+) seconds', log_line)
+#   gate_count_match = re.search(r'Final gate count: (\d+)', log_line)
 
-  if seconds_match and gate_count_match:
-      seconds = int(seconds_match.group(1))
-      gate_count = int(gate_count_match.group(1))
-      return (gate_count, seconds)
-  else:
-      print("Pattern not found in the log line.", f)
+#   if seconds_match and gate_count_match:
+#       seconds = int(seconds_match.group(1))
+#       gate_count = int(gate_count_match.group(1))
+#       return (gate_count, seconds)
+#   else:
+#       print("Pattern not found in the log line.", f)
 
 
 def log_from_bench(bn, tool, gate_set):
@@ -137,12 +166,15 @@ def log_from_bench(bn, tool, gate_set):
   path = BASE_DIR + bn + "/" + bn + gate_set.value
   if tool == Tool.quartz:
     return read_quartz_log (path +  ".quartz.combined.log")
+  elif tool == Tool.queso:
+    return read_queso_log(path + ".queso.combined.log")
   else:
-    return read_local_log(path +  ".lopt.%s.log"%(Tool.extension()))
+    return read_local_log(path +  ".lopt%s%slog"%(Tool.extension(), Tool.config()))
 
 
 def split (times, sizes, time):
   logs = list(zip(times, sizes))
+  print(times, sizes, time)
   # print(list(logs))
   before = [t for t in logs if t[0] <= time]
   after = [t for t in logs if t[0] >= time]
@@ -150,6 +182,9 @@ def split (times, sizes, time):
   ua = list(zip(*after))
   if ua == []:
     ua = [[], []]
+  elif ub == []:
+    ub = [[], []]
+  print("before", before)
   return (list(ub[0]), list(ub[1]), list(ua[0]), list(ua[1]))
 
 def plot_bench (bn, gate_set):
@@ -632,7 +667,7 @@ def create_queso_tables(curr_list, names, write):
   print("filename", "prelim" + ext)
 
 def create_tables (curr_list, names, write, gate_set):
-  quartz_logs = list (map(lambda x: log_from_bench(x, Tool.quartz, gate_set), curr_list))
+  quartz_logs = list (map(lambda x: log_from_bench(x, Tool.queso, gate_set), curr_list))
   lopt_logs = list (map(lambda x: log_from_bench(x, Tool.lopt, gate_set), curr_list))
   headers = ["Name", "Input Size", "Q", "S", "Q/S", "Q", "S", "S/Q",  "Time (s)"]
   tab = []
@@ -758,7 +793,10 @@ for fam in [Family.hhl, Family.gf, Family.grover, Family.qftqis, Family.shor, Fa
   #   name_list += ["mod5_4"]
 
 print(curr_list)
-# print(create_tables(curr_list, name_list, True, GateSet.nam))
+curr_list = ["qft_n48_from_qiskit", "qft_n64_from_qiskit", "qft_n80_from_qiskit"]
+curr_list += ["hhl_n7_from_python"]
+
+print(create_tables(curr_list, curr_list, True, GateSet.nam))
 # curr_list.remove("hhl_n11_from_python")
 # # curr_list.remove("vqe_n24_from_python")
 # name_list.remove("hhl\\_n11")
@@ -793,7 +831,8 @@ def retrieve_missing(fam_list):
   return missing
 
 lin_families = [Family.lin_grover, Family.lin_hhl, Family.lin_vqe, Family.lin_shor, Family.lin_qftqis]
-plot_times(lin_families, GateSet.nam)
+# plot_times(lin_families, GateSet.nam)
+print(log_from_bench("hhl_n7_from_python", Tool.queso, GateSet.nam))
 
 # #
 
