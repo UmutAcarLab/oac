@@ -22,11 +22,11 @@ def replace_pi_with_value(qasm_file):
     # Find all matches in the QASM code
     matches = re.finditer(pattern, qasm_code)
     # Loop through each match and replace π with its numerical value
-    for match in matches:
-        gate = match.group('gate')
-        params = match.group('params')
+    for m in matches:
+        gate = m.group('gate')
+        params = m.group('params')
         angle = float(params.strip('()').replace('pi', '').replace('*', '')) * math.pi
-        qasm_code = qasm_code.replace(match.group(), f"{gate}({angle})")
+        qasm_code = qasm_code.replace(m.group(), f"{gate}({angle})")
 
     # Write the modified QASM code back to the file
     with open(qasm_file+ ".new", 'w') as file:
@@ -43,7 +43,8 @@ def replace_bench(bn):
     print("done, ", bn)
 
 # nned to do hhl_n11
-curr_list = ['ham15-med', 'ham15-high', 'hhl_n7_from_python', 'hhl_n9_from_python', 'gf2^16_mult', 'gf2^32_mult', 'grover_n7_from_python', 'grover_n9_from_python', 'grover_n11_from_python', 'grover_n15_from_python', 'qft_n48_from_qiskit', 'qft_n64_from_qiskit', 'qft_n80_from_qiskit', 'qft_n96_from_qiskit', 'shor_7_mod_15_n8_from_python', 'shor_7_mod_15_n10_from_python', 'vqe_n12_from_python', 'vqe_n16_from_python', 'vqe_n20_from_python', 'vqe_n24_from_python']
+# curr_list = ['ham15-med', 'ham15-high', 'hhl_n11_from_python', 'hhl_n9_from_python', 'gf2^16_mult', 'gf2^32_mult', 'grover_n7_from_python', 'grover_n9_from_python', 'grover_n11_from_python', 'grover_n15_from_python', 'qft_n48_from_qiskit', 'qft_n64_from_qiskit', 'qft_n80_from_qiskit', 'qft_n96_from_qiskit', 'shor_7_mod_15_n8_from_python', 'shor_7_mod_15_n10_from_python', 'vqe_n12_from_python', 'vqe_n16_from_python', 'vqe_n20_from_python', 'vqe_n24_from_python']
+curr_list = ['hhl_n11_from_python']
 print(list(map(lambda x: replace_bench(x), curr_list)))
 
 
