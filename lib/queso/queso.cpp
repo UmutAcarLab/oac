@@ -45,8 +45,17 @@ void initialize_ (const char* eqset_fn_, const char* symb_eqset_fn_, unsigned ch
     return;
   }
 
+  std::cout << "vm = " << quesoVM << std::endl;
   jclass wrapClass = env->FindClass("Wrapper");
+  jthrowable exc = env->ExceptionOccurred();
+    if (exc) {
+      env->ExceptionDescribe();
+      env->ExceptionClear();
+      std::cerr << "Exception occurred while loading class " << "Applier" << std::endl;
+  }
+  std::cout << "wrap class = " << wrapClass << std::endl;
   jmethodID wrapConst = (env)->GetMethodID(wrapClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
+  std::cout << "wrap const = " << wrapConst << std::endl;
   jstring rulefile = (env)->NewStringUTF(eqset_fn_);
   jstring symbRulefile = (env)->NewStringUTF(symb_eqset_fn_);
   jobject wrapObj_ = (env)->NewObject(wrapClass, wrapConst, rulefile, symbRulefile);
@@ -83,6 +92,7 @@ int opt_circuit_ (const char* cqasm_, int timeout, char* buffer, int buff_size, 
 
   jstring cqasm = (env)->NewStringUTF(cqasm_);
   jint tm = abs(timeout);
+  // jboolean all = timeout < 0 ? JNI_FALSE : JNI_TRUE;
   jboolean all = timeout < 0 ? JNI_FALSE : JNI_TRUE;
   // std::cout<<"changed args" << std::endl;
   // std::cout<<"timeout = " << timeout << std::endl;
