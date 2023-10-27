@@ -283,6 +283,7 @@ struct
       val final_size = TwoOPT.size c'
       val _ = print ("combined shrank circuit by " ^ (Int.toString (final_size - TwoOPT.size c) ^ "\n"))
       val _ = print ("new size =  " ^ (Int.toString (final_size) ^ "\n"))
+      val _ = print ("time taken = " ^ ((Real.toString (Time.toReal tm))) ^ "\n")
       val logstr = (TwoOPT.optlog rellog) ^  "\n" ^ ("(" ^ (Real.toString (Time.toReal tm)) ^  ", " ^ (Int.toString final_size) ^ ");\n")
       val _ = if writeLog then WriteFile.dump (logfile, logstr) else ()
     in
