@@ -3,7 +3,7 @@ functor CircuitOPT (structure GateSet : GATE_SET) : CIRCUIT_OPT =
 struct
   structure Circuit = CircuitFun (structure GateSet = GateSet)
 
-  structure BlackBoxOpt = QuesoBBInt (structure Circuit = Circuit)
+  structure BlackBoxOpt = QuartzBB (structure Circuit = Circuit)
   structure MeldOpt = VerticalMeldFun (structure BlackBoxOpt = BlackBoxOpt)
 
   open Circuit

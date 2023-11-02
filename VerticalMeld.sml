@@ -304,12 +304,13 @@ struct
         let
           val gi = CLA.parseInt "grain" (4 * wsz)
         in
-          if gi >= 1600 then (1 + 1000 div wsz) * wsz
+          if gi < 600 then 600
+          else if gi >= 1600 andalso (gi >= 2*wsz) then (1 + 1000 div wsz) * wsz
           else gi
         end
       val wt = SOME (Time.fromReal (gt * (Real.fromInt wsz)))
       val (c', tm) =
-        Util.getTime (fn _ => apply_opt_seq' (P {wsz = wsz, grain = grain, wdtime = wt, total = timeout}) (gcvopt bbopt) c)
+        Util.getTime (fn _ => apply_opt_flat (P {wsz = wsz, grain = grain, wdtime = wt, total = timeout}) (gcvopt bbopt) c)
       val _ = print ("greedy done opts = " ^ (Int.toString(Circuit.size c' - Circuit.size c) ^ "\n"))
       val gtspent = Real./ (Time.toReal tm, Real.fromInt (Circuit.size c))
       val gt = Real.- (gt, gtspent)
@@ -319,7 +320,7 @@ struct
       val wtr = (gt * (Real.fromInt wsz))
       val c'' =
         if wtr >= 1.0 then
-          apply_opt_seq'
+          apply_opt_flat
             (P {wsz = wsz, grain = grain, wdtime = SOME (Time.fromReal wtr), total = Time.-(timeout, tm)})
             (cvopt bbopt) c'
         else c'
