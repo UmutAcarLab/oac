@@ -11,9 +11,9 @@ FFI_FLAGS?=-default-ann 'allowFFI true' -export-header export.h
 
 MPL=/root/mpl-em/build/bin/mpl
 
-MLTON=/home/swestric/installs/mlton/build/bin/mlton
+MLTON=mlton
 
-JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+#JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 QUESO_INCLUDE=-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -L$(JAVA_HOME)/lib/server -ljvm
 QUESO_LINKS=-link-opt 'queso.o -lstdc++ -ljvm $(QUESO_INCLUDE)'
 
@@ -40,12 +40,12 @@ phony:
 
 %.mlton.bin: phony
 	@mkdir -p bin
-	$(MLTON) -mlb-path-var 'COMPAT mlton' -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
+	$(MLTON) -mlb-path-var 'COMPAT mlton'  $(FFI_FLAGS) -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
 
 %.mpl.quartz.bin: phony
 	@mkdir -p bin
 	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/quartz/quartz.cpp -lquartz_runtime
-	$(MPL) -mlb-path-var 'COMPAT mpl' $(FFI_FLAGS) $(DEFAULT_FLAGS) $(MPL_FLAGS) -output bin/$@ $*.mlb lib/quartz/quartz_api.c
+	$(MPL) -mlb-path-var 'COMPAT mpl' $(FFI_FLAGS) $(QUARTZ_LINKS) $(DEFAULT_FLAGS) $(MPL_FLAGS) -output bin/$@ $*.mlb lib/quartz/quartz_api.c
 
 %.bin: phony
 	@mkdir -p bin
