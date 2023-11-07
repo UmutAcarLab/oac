@@ -300,14 +300,14 @@ struct
     let
       val nq = Circuit.num_qubits c
       val wsz = nq * (BlackBoxOpt.max_size bbopt 1)
-      val grain =
-        let
+      val grain = 2 * wsz
+        (* let
           val gi = CLA.parseInt "grain" (4 * wsz)
         in
           if gi < 600 then 600
           else if gi >= 1600 andalso (gi >= 2*wsz) then (1 + 1000 div wsz) * wsz
           else gi
-        end
+        end *)
       val wt = SOME (Time.fromReal (gt * (Real.fromInt wsz)))
       val (c', tm) =
         Util.getTime (fn _ => apply_opt_flat (P {wsz = wsz, grain = grain, wdtime = wt, total = timeout}) (gcvopt bbopt) c)
@@ -315,7 +315,7 @@ struct
       val gtspent = Real./ (Time.toReal tm, Real.fromInt (Circuit.size c))
       val gt = Real.- (gt, gtspent)
       val wsz =  Int.min (nq * (BlackBoxOpt.max_size bbopt 1), 20)
-      val _ = print ("total time (per gate) remaining = " ^ (Real.toString gt) ^ "\n")
+      (* val _ = print ("total time (per gate) remaining = " ^ (Real.toString gt) ^ "\n")
       val grain = CLA.parseInt "grain" (2 * wsz)
       val wtr = (gt * (Real.fromInt wsz))
       val c'' =
@@ -323,9 +323,9 @@ struct
           apply_opt_flat
             (P {wsz = wsz, grain = grain, wdtime = SOME (Time.fromReal wtr), total = Time.-(timeout, tm)})
             (cvopt bbopt) c'
-        else c'
+        else c' *)
     in
-      c''
+      c'
     end
 
 end
