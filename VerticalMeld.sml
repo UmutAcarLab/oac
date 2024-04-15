@@ -20,7 +20,8 @@ struct
   type circuit = Circuit.circuit
   type oracle = (circuit * Time.time) -> circuit option
   (* Unfortunately, Time.fromReal (Real.posInf) overflows *)
-  (* So, I am assuming we will not run this code for longer than three hundred years, it is configurable :=) *)
+  (* So, I am assuming we will not run this code for longer than three hundred years,
+   * If you need to, it is configurable :) *)
   val maxTime = Time.fromReal (10000000000.0)
 
   datatype param = P of {wsz: int, grain: int, wdtime : Time.time option, total : Time.time}
