@@ -221,8 +221,38 @@ struct
       else ()
     end
 
-  fun greedy_optimize () =
+  fun loop_opt (optFunc) =
     let
+      val c =
+        let val nppc = (TwoOPT.from_qasm qasm_file) in
+          if no_preprocess then nppc
+          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
+        end
+
+      fun optLoop (c, cnt) =
+        let
+          val c' = optFunc c
+          val new_size = TwoOPT.size c'
+          val og_size = TwoOPT.size c
+        in
+          if new_size < og_size then optLoop (TwoOPT.compress c', cnt + 1)
+          else (c', cnt + 1)
+        end
+
+      val rellog = (Time.now(), TwoOPT.size c)
+      val (c', numLoop) = Benchmark.run "loop optimization" (fn _ => optLoop (c, 0))
+      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
+      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
+      val _ = print ("numLoops = " ^ (Int.toString numLoop) ^ "\n")
+      val _ = if writeLog then WriteFile.dump ("logs/" ^ (circ_name)^".greedy.log", (TwoOPT.optlog rellog) ^ "\n") else ()
+    in
+      if print_out then TwoOPT.dump c' outfile
+      else ()
+    end
+
+
+  fun greedy_optimize () = loop_opt (fn c => TwoOPT.greedy_optimize c timeout)
+    (* let
       val c =
         let val nppc = (TwoOPT.from_qasm qasm_file) in
           if no_preprocess then nppc
@@ -236,7 +266,7 @@ struct
     in
       if print_out then TwoOPT.dump c' outfile
       else ()
-    end
+    end *)
 
   fun optimize () =
     let
