@@ -34,5 +34,5 @@ struct
       Circuit.dump (Circuit.from_raw_sequence (nq, cred)) "out.qasm"
     end
 
-  (* val _ = gen_bench() *)
+  fun compress (c : circuit) = from_raw_sequence (to_raw_sequence c)
 end

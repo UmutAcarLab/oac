@@ -19,4 +19,6 @@ sig
   val cost : circuit -> int
   val dump : circuit -> string -> unit
   val optlog : (Time.time * int) -> string
+  val compress : circuit -> circuit
 end
+
