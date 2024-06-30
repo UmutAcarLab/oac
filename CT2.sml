@@ -14,24 +14,32 @@ struct
       RZ of (string * qubit)
     | RX of (string * qubit)
     | U1 of (string * qubit)
+    | U2 of (string * qubit)
+    | U3 of (string * qubit)
 
     fun map_support u fidx =
       case u of
         RZ (s, x) => RZ (s, fidx x)
       | RX (s, x) => RX (s, fidx x)
       | U1 (s, x) => U1 (s, fidx x)
+      | U2 (s, x) => U2 (s, fidx x)
+      | U3 (s, x) => U3 (s, fidx x)
 
     fun support u =
       case u of
         RZ(_, x) => [x]
       | RX(_, x) => [x]
       | U1(_, x) => [x]
+      | U2(_, x) => [x]
+      | U3(_, x) => [x]
 
     fun labelToGate g =
       case g of
         (r_some, [x]) =>
           if (String.isPrefix "rz" r_some) then SOME (RZ(r_some, x))
           else if (String.isPrefix "u1" r_some) then SOME (U1(r_some, x))
+          else if (String.isPrefix "u2" r_some) then SOME (U2(r_some, x))
+          else if (String.isPrefix "u3" r_some) then SOME (U3(r_some, x))
           else if (String.isPrefix "rx" r_some) then SOME (RX(r_some, x))
           else NONE
       | _ => NONE
@@ -40,6 +48,8 @@ struct
         RZ(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
       | RX(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
       | U1(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
+      | U2(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
+      | U3(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
   end
 
   datatype gate =
@@ -51,6 +61,7 @@ struct
   | TD of qubit
   | X of qubit
   | Y of qubit
+  | Z of qubit
   | CNOT of qubit * qubit
   | CCZ of qubit * qubit * qubit
   | CCX of qubit * qubit * qubit
@@ -66,6 +77,7 @@ struct
     | TD(x) => TD (fidx x)
     | X (x) => X (fidx x)
     | Y (x) => Y (fidx x)
+    | Z (x) => Z (fidx x)
     | CNOT (x, y) => CNOT (fidx x, fidx y)
     | CCZ (x, y, z) => CCZ (fidx x, fidx y, fidx z)
     | CCX (x, y, z) => CCX (fidx x, fidx y, fidx z)
@@ -81,6 +93,7 @@ struct
     | TD(x) => [x]
     | X (x) => [x]
     | Y (x) => [x]
+    | Z (x) => [x]
     | CNOT (x, y) => [x, y]
     | CCZ (x, y, z) => [x, y, z]
     | CCX (x, y, z) => [x, y, z]
@@ -96,6 +109,7 @@ struct
     | ("tdg", [x]) => TD (x)
     | ("x", [x]) => X (x)
     | ("y", [x]) => Y (x)
+    | ("z", [x]) => Z (x)
     | ("cx", [x, y]) =>  (if (not (Qubit.eq (x, y))) then () else (print "x =y label\n";raise InvalidGate); CNOT (x, y))
     | ("ccz", [x, y, z]) => CCZ (x, y, z)
     | ("ccx", [x, y, z]) => CCX (x, y, z)
@@ -118,6 +132,7 @@ struct
     | TD(x) => "tdg q[" ^ (Qubit.str x) ^ "]"
     | X(x) => "x q[" ^ (Qubit.str x) ^ "]"
     | Y(x) => "y q[" ^ (Qubit.str x) ^ "]"
+    | Z(x) => "z q[" ^ (Qubit.str x) ^ "]"
     | CNOT(x, y) =>
     (if (not (Qubit.eq (x, y))) then () else (print "x =y!!\n";raise InvalidGate); "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]")
     | CCZ(x, y, z) => "ccz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
@@ -134,16 +149,38 @@ struct
     | TD(x) => T(x)
     | X _ => g
     | Y _ => g
+    | Z _ => g
     | CNOT _ => g
     | CCZ _ => g
     | CCX _ => g
     | UNINT _ => raise Unimplemented
 
-  fun gate_cost g = 1
-    (* case g of
+  fun gate_cost g =
+  (* 1 *)
+    case g of
       T _ => 1
     | TD _ => 1
-    | _ => 0 *)
+    | CCZ _ => 7
+    | CCX _ => 7
+    | _ => 0
+
+  fun gate_arity g =
+    case g of
+      H _ => 1
+    | S _ => 1
+    | T _ => 1
+    | HD _ => 1
+    | SD _ => 1
+    | TD _ => 1
+    | X _ => 1
+    | Y _ => 1
+    | Z _ => 1
+    | CNOT _ => 2
+    | CCZ _ => 3
+    | CCX _ => 3
+    | UNINT _ => raise Unimplemented
+
+
 
   val gate_matrix =
     let
@@ -158,6 +195,7 @@ struct
       val tdm = ComplexMatrix.dagger tm
       val xm = ComplexMatrix.fromList[[z, one], [one, z]]
       val ym = ComplexMatrix.fromList[[z, (0.0, ~1.0)], [(0.0, 1.0), z]]
+      val zm = ComplexMatrix.fromList[[one, z], [z, (~1.0, 0.0)]]
       val cnotm = ComplexMatrix.fromList [[one, z, z, z], [z, one, z, z], [z, z, z, one], [z, z, one, z]]
       val ccxm =
         let
@@ -189,6 +227,7 @@ struct
         | TD _ => tdm
         | X _ => xm
         | Y _ => xm
+        | Z _ => zm
         | CNOT _ => cnotm
         | CCZ _ => cczm
         | CCX _ => ccxm
@@ -212,61 +251,13 @@ struct
   val circ_name =
     Substring.string (#2 (Substring.splitr (fn c => c <> #"/") (Substring.full qasm_file)))
 
-  fun preprocess () =
+  fun preprocess (c, dump, outfile) =
     let
-      val c = TwoOPT.from_qasm qasm_file
       val c' = run "preprocessing" (fn _ => TwoOPT.preprocess c)
     in
-      if print_out then TwoOPT.dump c' outfile
+      if dump then TwoOPT.dump c' outfile
       else ()
     end
-
-  fun loop_opt (optFunc) =
-    let
-      val c =
-        let val nppc = (TwoOPT.from_qasm qasm_file) in
-          if no_preprocess then nppc
-          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
-        end
-
-      fun optLoop (c, cnt) =
-        let
-          val c' = optFunc c
-          val new_size = TwoOPT.size c'
-          val og_size = TwoOPT.size c
-        in
-          if new_size < og_size then optLoop (TwoOPT.compress c', cnt + 1)
-          else (c', cnt + 1)
-        end
-
-      val rellog = (Time.now(), TwoOPT.size c)
-      val (c', numLoop) = Benchmark.run "loop optimization" (fn _ => optLoop (c, 0))
-      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
-      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
-      val _ = print ("numLoops = " ^ (Int.toString numLoop) ^ "\n")
-      val _ = if writeLog then WriteFile.dump ("logs/" ^ (circ_name)^".greedy.log", (TwoOPT.optlog rellog) ^ "\n") else ()
-    in
-      if print_out then TwoOPT.dump c' outfile
-      else ()
-    end
-
-
-  fun greedy_optimize () = loop_opt (fn c => TwoOPT.greedy_optimize c timeout)
-    (* let
-      val c =
-        let val nppc = (TwoOPT.from_qasm qasm_file) in
-          if no_preprocess then nppc
-          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
-        end
-      val rellog = (Time.now(), TwoOPT.size c)
-      val c' = Benchmark.run "greedy optimization" (fn _ => TwoOPT.greedy_optimize c timeout)
-      val _ = (print ("shrank circuit by " ^ (Int.toString (TwoOPT.size c - TwoOPT.size c') ^ "\n"));
-      print ("new size =  " ^ (Int.toString (TwoOPT.size c') ^ "\n")))
-      val _ = if writeLog then WriteFile.dump ("logs/" ^ (circ_name)^".greedy.log", (TwoOPT.optlog rellog) ^ "\n") else ()
-    in
-      if print_out then TwoOPT.dump c' outfile
-      else ()
-    end *)
 
   fun optimize () =
     let
@@ -300,7 +291,7 @@ struct
       else ()
     end
 
-  fun comb_opt (wt) =
+  (* fun comb_opt (wt) =
     let
       val c =
         let val nppc = (TwoOPT.from_qasm qasm_file) in
@@ -319,18 +310,65 @@ struct
     in
       if print_out then TwoOPT.dump c' outfile
       else ()
+    end *)
+
+  fun loop_opt (optFunc, c) =
+    let
+      fun optLoop (c, cnt) =
+        let
+          val c' = optFunc c
+          val new_size = TwoOPT.size c'
+          val og_size = TwoOPT.size c
+          val _ = print ("new size = " ^ (Int.toString new_size) ^ (" old size = ") ^ (Int.toString og_size) ^ " loop num = " ^ (Int.toString cnt) ^ "\n")
+        in
+          if new_size < og_size then optLoop (TwoOPT.compress c', cnt + 1)
+          else (c', cnt + 1)
+        end
+
+      val rellog = (Time.now(), TwoOPT.size c)
+      val (c', numLoops) = Benchmark.run "loop optimization" (fn _ => optLoop (c, 0))
+      val _ = print ("numLoops = " ^ (Int.toString numLoops) ^ "\n")
+    in
+      c'
     end
 
-
+  fun run_optimizer () =
+    let
+      fun get_circuit () =
+        let
+          val no_preprocess = CLA.isArg "nopp"
+          val nppc = (TwoOPT.from_qasm qasm_file)
+        in
+          if no_preprocess then nppc
+          else (run "preprocessing" (fn _ => TwoOPT.preprocess nppc))
+        end
+      val c = get_circuit ()
+      val _ = print ("circuit size before optimization = " ^ (Int.toString (TwoOPT.size c)) ^ "\n")
+      val initial_cost = TwoOPT.cost c
+      val wt = CLA.parseReal "wtcomb" 0.0
+      val rellog = (Time.now(), TwoOPT.size c)
+      val (c', tm) = Util.getTime (fn _ =>
+        if CLA.isArg "greedyonly" then loop_opt (fn c => TwoOPT.greedy_optimize c timeout, c)
+        else if CLA.isArg "wtcomb" then loop_opt (fn c => TwoOPT.combined_opt c wt timeout, c)
+        else c)
+      val final_size = TwoOPT.size c'
+      val final_cost = TwoOPT.cost c'
+      val _ = print ("circuit optimized by " ^ (Int.toString (final_cost - initial_cost) ^ "\n"))
+      val _ = print ("new cost =  " ^ (Int.toString (final_cost) ^ "\n"))
+      val _ = print ("time taken = " ^ ((Real.toString (Time.toReal tm))) ^ "\n")
+      (* val logstr = (TwoOPT.optlog rellog) ^  "\n" ^ ("(" ^ (Real.toString (Time.toReal tm)) ^  ", " ^ (Int.toString final_size) ^ ");\n") *)
+      val logstr =  ("(0, " ^ (Int.toString (initial_cost)) ^ "); ") ^
+        ("(" ^ (Real.toString (Time.toReal tm)) ^  ", " ^ (Int.toString final_cost) ^ ");\n")
+      val _ = if writeLog then WriteFile.dump (logfile, logstr) else ()
+    in
+      if print_out then TwoOPT.dump c' outfile
+      else ()
+    end
 
 end
 
 
-val _ = if CLA.isArg "pponly" then Experiment.preprocess ()
-        else if CLA.isArg "greedyonly" then Experiment.greedy_optimize()
-        else if CLA.isArg "wtcomb" then Experiment.comb_opt(CLA.parseReal "wtcomb" 0.0)
-        else Experiment.optimize()
-
+val _ = Experiment.run_optimizer ()
 (* val _ = TwoOPT.cprint c *)
 (* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
 (* val _ = print(ComplexMatrix.str (TwoOPT.eval_circuit c)) *)
