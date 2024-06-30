@@ -145,7 +145,7 @@ struct
       if not (repeat) orelse Time.< (rem, wt') then copt
       else apply_opt_seq repeat (P {wsz = wsz, grain = grain, wdtime = SOME wt', total = rem}) optfun copt
     end
-
+(*
   fun apply_opt_seq' (P {wsz, grain, wdtime, total}) (optfun : oracle) c =
     let
       fun scale_time t k = Time.fromReal (Time.toReal t * (Real.fromInt k))
@@ -177,6 +177,100 @@ struct
         end
     in
       absorb (Circuit.from_raw_sequence (Circuit.num_qubits c, Seq.empty())) c
+    end *)
+
+
+  fun apply_opt_seq' (P {wsz, grain, wdtime, total}) (optfun : oracle) c =
+    let
+      fun scale_time t k = Time.fromReal (Time.toReal t * (Real.fromInt k))
+      val wdtime = Option.valOf wdtime
+      val meld_time = scale_time wdtime 2
+      val moptfun = fn c => optfun(c, meld_time)
+      val grain_time = scale_time wdtime (Int.div(grain, wsz))
+      val goptfun = fn c => optfun(c, grain_time)
+      val start = Time.now()
+
+      fun check_time t = Time.<= (Time.- (Time.now (), start), Time.- (total, t))
+
+
+      fun splits c cl =
+        if Circuit.size c <= grain then c::cl
+        else let
+          val (peel, c') = Circuit.split c grain
+        in
+          splits c' (peel::cl)
+        end
+      val cl = splits c []
+      val cseq = Seq.rev (Seq.fromList cl)
+      (* val cseq = Seq.take cseq (CommandLineArgs.parseInt "parts" 32) *)
+      val _ = print ("cseq length = " ^ (Int.toString (Seq.length cseq)) ^ "\n")
+      val (cseq_opt, tm) = Util.getTime (fn _ => mapg 1 (fn c => case goptfun c of SOME c' => c' | NONE => c) cseq)
+      val _ = print ("time taken in flat phase = " ^ (str_time tm) ^ "\n")
+      (* val cnew =
+        let
+          fun mloop (c, i) =
+            if i = 0 then c
+            else mloop (Circuit.prepend (Seq.nth cseq_opt (i - 1), c), i - 1)
+        in
+          mloop (Circuit.from_raw_sequence (Circuit.num_qubits c, Seq.empty()), Seq.length cseq_opt)
+        end
+
+      val _ = print ("size after flat phase = " ^ (Int.toString (Circuit.size cnew)) ^ "\n") *)
+
+      fun par_meld (cseq : circuit Seq.t) =
+        let
+          fun meld_step (c1: circuit, c2 : circuit) : circuit Seq.t =
+            let
+              val s1 = Circuit.cstring c1 ";"
+              val s2 = Circuit.cstring c2 ";"
+              (* val _ = print ("melding " ^ s1 ^ " with " ^ s2 ^ "\n") *)
+            in
+              case stepMeld wsz moptfun (c1, c2) of
+                OPT c => Seq.fromList [c]
+              | MELD {prefix, window, suffix} => Seq.fromList [prefix, window, suffix]
+            end
+
+          fun loop (cseq : circuit Seq.t, numMelds : int, numLoops : int) =
+            if (Seq.length cseq = 1) then (Seq.nth cseq 0, numMelds, numLoops)
+            else let
+              val n = Seq.length cseq
+              val _ = print ("cseq length = " ^ (Int.toString n) ^ "\n")
+              val argsi = fn i => (Seq.nth cseq (2*i), Seq.nth cseq (2*i + 1))
+              val stepseq = tabulateg 1 (fn i => meld_step (argsi i)) (n div 2)
+              val cseq' =
+                if (n mod 2) = 0 then Seq.flatten stepseq
+                else Seq.append (Seq.flatten stepseq, Seq.fromList ([Seq.nth cseq (n - 1)]))
+            in
+              loop (cseq', numMelds + (n div 2), numLoops + 1)
+            end
+        in
+          loop (cseq, 0, 0)
+        end
+
+      val ((copt, numMelds, numLoops), spent) = Util.getTime (fn _ => par_meld cseq_opt)
+      val _ = print (("time taken in melding = " ^ (str_time spent) ^ " num melds = " ^ (Int.toString numMelds) ^ "\n"))
+      val _ = print ((" num loops = " ^ (Int.toString numLoops) ^ "\n"))
+
+      (* fun meld_seq (c1, c2) =
+        if check_time (meld_time) then
+          case stepMeld wsz moptfun (c1, c2) of
+            OPT c => c
+          | MELD {prefix, window, suffix} => meld_seq (meld_seq (prefix, window), suffix)
+        else Circuit.prepend (c1, c2)
+
+      fun absorb c1 c2  =
+        if not(check_time (grain_time)) then Circuit.prepend(c1, c2)
+        else if Circuit.size c2 = 0 then c1
+        else let
+          val (c2p, c2s) = Circuit.split c2 (Int.min (grain, Circuit.size c2))
+        in
+          case goptfun c2p of
+            NONE => absorb (Circuit.prepend (c1, c2p)) c2s
+          | SOME c2p' => absorb (meld_seq (c1, c2p')) c2s
+        end *)
+    in
+      copt
+      (* absorb (Circuit.from_raw_sequence (Circuit.num_qubits c, Seq.empty())) c *)
     end
 
   fun apply_opt_flat (P {wsz, grain, wdtime, total}) (optfun : oracle) c =
@@ -265,15 +359,42 @@ struct
   fun preprocess bbopt c =
     let
       val _ = print ("size = " ^ (Int.toString (Circuit.size c)) ^ "\n")
+      val grain = 200
+      val goptfun = fn c => (vpreprocess bbopt) (c, maxTime)
+      fun splits c cl =
+        if Circuit.size c <= grain then c::cl
+        else let
+          val (peel, c') = Circuit.split c grain
+        in
+          splits c' (peel::cl)
+        end
+      val cl = splits c []
+      val cseq = Seq.rev (Seq.fromList cl)
+      (* val cseq = Seq.take cseq (CommandLineArgs.parseInt "parts" 32) *)
+      val _ = print ("cseq length = " ^ (Int.toString (Seq.length cseq)) ^ "\n")
+      val (cseq_opt, tm) = Util.getTime (fn _ => mapg 1 (fn c => case goptfun c of SOME c' => c' | NONE => c) cseq)
     in
-      apply_opt_seq false (P {wsz = 0, grain = Circuit.size c, wdtime = NONE, total = maxTime}) (vpreprocess bbopt) c
+      seq_to_circuit cseq_opt
     end
+
+    (* let
+      val _ = print ("size = " ^ (Int.toString (Circuit.size c)) ^ "\n")
+    in
+      apply_opt_seq' (P {wsz = 100, grain = 300, wdtime = SOME maxTime, total = maxTime}) (vpreprocess bbopt) c
+    end *)
 
   fun greedy_optimize bbopt c timeout =
     let
       val nq = Circuit.num_qubits c
       val wsz = nq * (CLA.parseInt "size" 6)
-      val grain = CLA.parseInt "grain" (5 * wsz)
+      val grain =
+        let
+          val gi = CLA.parseInt "grain" (5 * wsz)
+        in
+          if gi < 600 then 600
+          else if gi >= 20000 andalso (gi >= 2*wsz) then (1 + 20000 div wsz) * wsz
+          else gi
+        end
       val _ = print ("size = " ^ (Int.toString (Circuit.size c)) ^ "\n")
       val nc =  apply_opt_seq false (P {wsz = wsz, grain = grain, wdtime = NONE, total = timeout}) (gvopt bbopt) c
     in
@@ -301,14 +422,15 @@ struct
     let
       val nq = Circuit.num_qubits c
       val wsz = nq * (BlackBoxOpt.max_size bbopt 1)
-      val grain = 2 * wsz
-        (* let
+      val grain =
+      (* 2 * wsz *)
+        let
           val gi = CLA.parseInt "grain" (4 * wsz)
         in
           if gi < 600 then 600
           else if gi >= 1600 andalso (gi >= 2*wsz) then (1 + 1000 div wsz) * wsz
           else gi
-        end *)
+        end
       val wt = SOME (Time.fromReal (gt * (Real.fromInt wsz)))
       val (c', tm) =
         Util.getTime (fn _ => apply_opt_flat (P {wsz = wsz, grain = grain, wdtime = wt, total = timeout}) (gcvopt bbopt) c)
@@ -316,7 +438,7 @@ struct
       val gtspent = Real./ (Time.toReal tm, Real.fromInt (Circuit.size c))
       val gt = Real.- (gt, gtspent)
       val wsz =  Int.min (nq * (BlackBoxOpt.max_size bbopt 1), 20)
-      (* val _ = print ("total time (per gate) remaining = " ^ (Real.toString gt) ^ "\n")
+      val _ = print ("total time (per gate) remaining = " ^ (Real.toString gt) ^ "\n")
       val grain = CLA.parseInt "grain" (2 * wsz)
       val wtr = (gt * (Real.fromInt wsz))
       val c'' =
@@ -324,7 +446,7 @@ struct
           apply_opt_flat
             (P {wsz = wsz, grain = grain, wdtime = SOME (Time.fromReal wtr), total = Time.-(timeout, tm)})
             (cvopt bbopt) c'
-        else c' *)
+        else c'
     in
       c'
     end
