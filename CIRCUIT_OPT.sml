@@ -11,6 +11,7 @@ sig
   val eval_circuit : circuit -> ComplexMatrix.t
   val support : circuit -> QSet.t
   val gate : circuit -> layer -> Qubit.qubit -> gate
+  val num_layers : circuit -> int
   val preprocess : circuit -> circuit
   val greedy_optimize : circuit -> Time.time -> circuit
   val search : circuit -> Time.time -> circuit

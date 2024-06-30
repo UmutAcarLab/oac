@@ -3,7 +3,7 @@ functor CircuitOPT (structure GateSet : GATE_SET) : CIRCUIT_OPT =
 struct
   structure Circuit = CircuitFun (structure GateSet = GateSet)
 
-  structure BlackBoxOpt = QuartzBB (structure Circuit = Circuit)
+  structure BlackBoxOpt = VoqcBB (structure Circuit = Circuit)
   structure MeldOpt = VerticalMeldFun (structure BlackBoxOpt = BlackBoxOpt)
 
   open Circuit
@@ -34,5 +34,11 @@ struct
       Circuit.dump (Circuit.from_raw_sequence (nq, cred)) "out.qasm"
     end
 
-  fun compress (c : circuit) = from_raw_sequence (to_raw_sequence c)
+  fun compress (c : circuit) =
+    let
+      val c' = from_raw_sequence (to_raw_sequence c)
+    in
+      c'
+    end
+
 end
