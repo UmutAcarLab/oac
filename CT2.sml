@@ -155,14 +155,14 @@ struct
     | CCX _ => g
     | UNINT _ => raise Unimplemented
 
-  fun gate_cost g =
+  fun gate_cost g = 1
   (* 1 *)
-    case g of
+   (* case g of
       T _ => 1
     | TD _ => 1
     | CCZ _ => 7
     | CCX _ => 7
-    | _ => 0
+    | _ => 0*)
 
   fun gate_arity g =
     case g of
