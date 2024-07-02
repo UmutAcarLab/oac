@@ -47,7 +47,7 @@ structure Circuit = Circuit
 
 (* fun proc_id () = MLton.Parallel.processorNumber ()
 val P = MLton.Parallel.numberOfProcessors *)
-val voqc_exec =  "./lib/mlvoqc/_build/default/exam_cliff.exe -f "
+val voqc_exec =  "./lib/mlvoqc/_build/default/example.exe -f "
 val qasm_file = CommandLineArgs.parseString "circuit" "test-small.qasm"
 val circ_name =
     Substring.string (#2 (Substring.splitr (fn c => c <> #"/") (Substring.full qasm_file)))
