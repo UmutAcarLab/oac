@@ -316,12 +316,15 @@ struct
     let
       fun optLoop (c, cnt) =
         let
-          val c' = optFunc c
+          val (c', tm) = Util.getTime (fn _ => optFunc c)
+          val tmstr = " loop time = " ^ (Real.toString (Time.toReal tm))
+          (* val c' = optFunc c *)
           val new_size = TwoOPT.size c'
           val og_size = TwoOPT.size c
-          val _ = print ("new size = " ^ (Int.toString new_size) ^ (" old size = ") ^ (Int.toString og_size) ^ " loop num = " ^ (Int.toString cnt) ^ "\n")
+          val _ = print ("new size = " ^ (Int.toString new_size) ^ (" old size = ") ^ (Int.toString og_size) ^ tmstr ^ " loop num = " ^ (Int.toString cnt) ^ "\n")
+          val reduction = (og_size - new_size)
         in
-          if new_size < og_size then optLoop (TwoOPT.compress c', cnt + 1)
+          if reduction*100 >= og_size then optLoop (TwoOPT.compress c', cnt + 1)
           else (c', cnt + 1)
         end
 
@@ -357,7 +360,7 @@ struct
       val _ = print ("new cost =  " ^ (Int.toString (final_cost) ^ "\n"))
       val _ = print ("time taken = " ^ ((Real.toString (Time.toReal tm))) ^ "\n")
       (* val logstr = (TwoOPT.optlog rellog) ^  "\n" ^ ("(" ^ (Real.toString (Time.toReal tm)) ^  ", " ^ (Int.toString final_size) ^ ");\n") *)
-      val logstr =  ("(0, " ^ (Int.toString (initial_cost)) ^ "); ") ^
+      val logstr =  ("(0, " ^ (Int.toString (initial_cost)) ^ ");\n") ^
         ("(" ^ (Real.toString (Time.toReal tm)) ^  ", " ^ (Int.toString final_cost) ^ ");\n")
       val _ = if writeLog then WriteFile.dump (logfile, logstr) else ()
     in
