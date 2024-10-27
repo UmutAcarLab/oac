@@ -63,6 +63,8 @@ struct
   | Y of qubit
   | Z of qubit
   | CNOT of qubit * qubit
+  | SWAP of qubit * qubit
+  | CZ of qubit * qubit
   | CCZ of qubit * qubit * qubit
   | CCX of qubit * qubit * qubit
   | UNINT of Unint.t
@@ -79,6 +81,8 @@ struct
     | Y (x) => Y (fidx x)
     | Z (x) => Z (fidx x)
     | CNOT (x, y) => CNOT (fidx x, fidx y)
+    | SWAP (x, y) => SWAP (fidx x, fidx y)
+    | CZ (x, y) => CZ (fidx x, fidx y)
     | CCZ (x, y, z) => CCZ (fidx x, fidx y, fidx z)
     | CCX (x, y, z) => CCX (fidx x, fidx y, fidx z)
     | UNINT x => UNINT (Unint.map_support x fidx)
@@ -95,6 +99,8 @@ struct
     | Y (x) => [x]
     | Z (x) => [x]
     | CNOT (x, y) => [x, y]
+    | SWAP (x, y) => [x, y]
+    | CZ (x, y) => [x, y]
     | CCZ (x, y, z) => [x, y, z]
     | CCX (x, y, z) => [x, y, z]
     | UNINT x => Unint.support x
@@ -111,6 +117,8 @@ struct
     | ("y", [x]) => Y (x)
     | ("z", [x]) => Z (x)
     | ("cx", [x, y]) =>  (if (not (Qubit.eq (x, y))) then () else (print "x =y label\n";raise InvalidGate); CNOT (x, y))
+    | ("swap", [x, y]) =>  (if (not (Qubit.eq (x, y))) then () else (print "x =y label\n";raise InvalidGate); SWAP (x, y))
+    | ("cz", [x, y]) =>  (if (not (Qubit.eq (x, y))) then () else (print "x =y label\n";raise InvalidGate); CZ (x, y))
     | ("ccz", [x, y, z]) => CCZ (x, y, z)
     | ("ccx", [x, y, z]) => CCX (x, y, z)
     | x =>
@@ -135,6 +143,10 @@ struct
     | Z(x) => "z q[" ^ (Qubit.str x) ^ "]"
     | CNOT(x, y) =>
     (if (not (Qubit.eq (x, y))) then () else (print "x =y!!\n";raise InvalidGate); "cx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]")
+    | SWAP(x, y) =>
+    (if (not (Qubit.eq (x, y))) then () else (print "x =y!!\n";raise InvalidGate); "swap q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]")
+    | CZ(x, y) =>
+    (if (not (Qubit.eq (x, y))) then () else (print "x =y!!\n";raise InvalidGate); "cz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "]")
     | CCZ(x, y, z) => "ccz q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
     | CCX(x, y, z) => "ccx q[" ^ (Qubit.str x) ^ "], q[" ^ (Qubit.str y) ^ "], q[" ^ (Qubit.str z) ^ "]"
     | UNINT x => Unint.str x
@@ -151,18 +163,20 @@ struct
     | Y _ => g
     | Z _ => g
     | CNOT _ => g
+    | SWAP _ => g
+    | CZ _ => g
     | CCZ _ => g
     | CCX _ => g
     | UNINT _ => raise Unimplemented
 
-  fun gate_cost g = 1
+  fun gate_cost g =
   (* 1 *)
-   (* case g of
+   case g of
       T _ => 1
     | TD _ => 1
     | CCZ _ => 7
     | CCX _ => 7
-    | _ => 0*)
+    | _ => 0
 
   fun gate_arity g =
     case g of
@@ -176,6 +190,8 @@ struct
     | Y _ => 1
     | Z _ => 1
     | CNOT _ => 2
+    | SWAP _ => 2
+    | CZ _ => 2
     | CCZ _ => 3
     | CCX _ => 3
     | UNINT _ => raise Unimplemented
@@ -197,6 +213,8 @@ struct
       val ym = ComplexMatrix.fromList[[z, (0.0, ~1.0)], [(0.0, 1.0), z]]
       val zm = ComplexMatrix.fromList[[one, z], [z, (~1.0, 0.0)]]
       val cnotm = ComplexMatrix.fromList [[one, z, z, z], [z, one, z, z], [z, z, z, one], [z, z, one, z]]
+      val swapm = ComplexMatrix.fromList [[one, z, z, z], [z, z, one, z], [z, one, z, z], [z, z, z, one]]
+      val czm = ComplexMatrix.fromList [[one, z, z, z], [z, one, z, z], [z, z, one, z], [z, z, z, (~1.0, 0.0)]]
       val ccxm =
         let
           fun eij (i, j) =
@@ -226,9 +244,11 @@ struct
         | SD _ => sdm
         | TD _ => tdm
         | X _ => xm
-        | Y _ => xm
+        | Y _ => ym
         | Z _ => zm
         | CNOT _ => cnotm
+        | SWAP _ => swapm
+        | CZ _ => czm
         | CCZ _ => cczm
         | CCX _ => ccxm
         | UNINT _ => raise Unimplemented

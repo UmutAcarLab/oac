@@ -11,11 +11,14 @@ FFI_FLAGS?=-default-ann 'allowFFI true' -export-header export.h
 
 MPL=/root/mpl-em/build/bin/mpl
 
+DEBUG=-const 'Exn.keepHistory true'
+
 MLTON=mlton
 
 #JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 QUESO_INCLUDE=-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -L$(JAVA_HOME)/lib/server -ljvm
 QUESO_LINKS=-link-opt 'queso.o -lstdc++ -ljvm $(QUESO_INCLUDE)'
+TRY_QUESO_LINKS=-link-opt 'try_queso.o -lstdc++ -ljvm $(QUESO_INCLUDE)'
 
 .PHONY: all clean realclean phony
 
@@ -38,9 +41,26 @@ phony:
 	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/queso/queso.cpp $(QUESO_INCLUDE)
 	$(MLTON) -mlb-path-var 'COMPAT mlton' $(FFI_FLAGS) $(QUESO_LINKS) $(DEFAULT_FLAGS) -output bin/$@ $*.mlb lib/queso/queso_api.c
 
+%.mlton.voqc.bin: phony
+	@mkdir -p bin
+	$(MLTON) -mlb-path-var 'COMPAT mlton'  $(FFI_FLAGS) $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
+
+%.mlton.pyzx.bin: phony
+	@mkdir -p bin
+	$(MLTON) -mlb-path-var 'COMPAT mlton'  $(FFI_FLAGS) $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
+
+%.mlton.try.queso.bin: phony
+	@mkdir -p bin
+	g++ -Wall -Wextra -Wconversion -Wno-unused-result -Werror -c lib/queso/try_queso.cpp $(QUESO_INCLUDE)
+	$(MLTON) -mlb-path-var 'COMPAT mlton' $(FFI_FLAGS) $(TRY_QUESO_LINKS) $(DEFAULT_FLAGS) -output bin/$@ $*.mlb lib/queso/try_queso_api.c
+
 %.mlton.bin: phony
 	@mkdir -p bin
-	$(MLTON) -mlb-path-var 'COMPAT mlton'  $(FFI_FLAGS) -const 'Exn.keepHistory true' $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
+	$(MLTON) -mlb-path-var 'COMPAT mlton'  $(FFI_FLAGS) $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
+
+%.mlton.diff.bin: phony
+	@mkdir -p bin
+	$(MLTON) -mlb-path-var 'COMPAT mlton'  $(FFI_FLAGS) $(DEBUG) $(DEFAULT_FLAGS) -output bin/$@ $*.mlb
 
 %.mpl.quartz.bin: phony
 	@mkdir -p bin

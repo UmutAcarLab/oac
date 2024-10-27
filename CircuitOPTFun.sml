@@ -3,7 +3,7 @@ functor CircuitOPT (structure GateSet : GATE_SET) : CIRCUIT_OPT =
 struct
   structure Circuit = CircuitFun (structure GateSet = GateSet)
 
-  structure BlackBoxOpt = VoqcBB (structure Circuit = Circuit)
+  structure BlackBoxOpt = PyzxBB (structure Circuit = Circuit)
   structure MeldOpt = VerticalMeldFun (structure BlackBoxOpt = BlackBoxOpt)
 
   open Circuit
