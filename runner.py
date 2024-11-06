@@ -149,11 +149,12 @@ def lopt_pyzx (path, bench_name, suffix, gate_set, wtcomb):
 	options = {
 		'timeout': 3600*3,
 		# 'wtcomb': wtcomb,
-		'size': 40,
+		'size': 100,
 		'nopp': '',
 		# 'rl': '',
 		'greedyonly': '',
-		'circuit': cpath + bench_name + gate_set.value + ".qasm" + ".preprocessed",
+		'circuit': cpath + bench_name + gate_set.value + ".qasm" # + ".preprocessed",
+														 ,
 		'outfile' : cpath + bench_name + gate_set.value + suffix + "." + wtcomb + ".output",
 		'logfile' : cpath + bench_name + gate_set.value + suffix + "." + wtcomb + ".log"
 	}
@@ -200,7 +201,7 @@ def lopt_voqc_size (path, bench_name, suffix, size):
 	return command
 
 
-def lopt_pyzx_size (path, bench_name, suffix, size):
+def lopt_pyzx_size (path, bench_name, suffix, gate_set, size):
 	cpath = path + bench_name + "/"
 	suffix+=".lopt.size.%d"%(size)
 	wtcomb = "pyzx"
@@ -211,8 +212,9 @@ def lopt_pyzx_size (path, bench_name, suffix, size):
 		'nopp': '',
 		# 'rl': '',
 		'greedyonly': '',
-		'circuit': cpath + bench_name + ".qasm" + ".preprocessed",
-		'logfile' : cpath + bench_name + suffix + "." + wtcomb + ".log"
+		'circuit': cpath + bench_name + gate_set.value + ".qasm" # + ".preprocessed"
+		,
+		'logfile' : cpath + bench_name + gate_set.value + suffix + "." + wtcomb + ".log"
 	}
 	command = './bin/ct2.mlton.pyzx.bin'
 
@@ -260,7 +262,7 @@ def loptwtcsize (path, bench_name, suffix, gate_set, wtcomb, size):
 	return command
 
 def size_exp (bn, sizes):
-	return list(map (lambda s: lopt_pyzx_size("benchmarks/", bn, "", s), sizes))
+	return list(map (lambda s: lopt_pyzx_size("benchmarks/", bn, "", GateSet.clifft, s), sizes))
 
 def quartz(path, bench_name, suffix, gate_set):
 	cpath = path + bench_name + "/"
@@ -317,16 +319,15 @@ def voqc(path, bench_name, suffix, gate_set):
 def pyzx(path, bench_name, suffix, gate_set):
 	cpath = path + bench_name + "/"
 	suffix+=".pyzx"
-	circuit =  cpath + bench_name + gate_set.value + ".qasm" +  ".preprocessed"
-	command = './lib/mlvoqc/_build/default/example.exe'
-	eqset = GateSet.eqset(gate_set)
+	circuit =  cpath + bench_name + gate_set.value + ".qasm" # +  ".preprocessed"
+	command = 'timeout 12h python3 pyzx/pyzx_alone.py'
 	options = {
-		'f' : circuit,
+		'circuit' : circuit,
 		'o' : cpath + bench_name + gate_set.value + suffix + ".output",
 	}
 
 	for option, value in options.items():
-		if option == 'circuit':
+		if option == 'circuit' or option == 'o':
 			command += ' {}'.format(value)
 		elif option == 'dump':
 			continue
@@ -600,18 +601,38 @@ curr_list = ["hhl_n7_from_python",
 # 	"vqe_n20_from_python",
 # 	"vqe_n24_from_python"]
 curr_list =  ["nwq_binary_welded_tree_n25", "nwq_binary_welded_tree_n29", "hhl_n13_from_python"]
+curr_list = [
+	"mod5_4",
+	"adder_8",
+	"nwq_boolean_satisfaction_n24",
+	"nwq_boolean_satisfaction_n28",
+	"nwq_binary_welded_tree_n17",
+	"grover_n9_from_python",
+	"grover_n15_from_python",
+	"hhl_n7_from_python",
+	"hhl_n9_from_python",
+	"qft_n24_from_python",
+	"qft_n30_from_python",
+	"shor_7_mod_15_n12_from_python",
+	"vqe_n8_from_python",
+	"vqe_n16_from_python",
+	"nwq_square_root_n42",
+	"nwq_statevector_n4",
+	"nwq_statevector_n6"
+]
 quartz_commands = list(map (lambda x : quartz("benchmarks/", x, "", GateSet.nam), curr_list))
 queso_commands = list(map (lambda x : queso("benchmarks/", x, "", GateSet.nam), curr_list))
-lopt_commands = list(map (lambda x : lopt_pyzx("benchmarks/", x, "", GateSet.nam, "0.01"), curr_list))
 voqc_commands = list(map (lambda x : voqc("benchmarks/", x, "", GateSet.nam), curr_list))
-pyzx_commands = list(map (lambda x : pyzx("benchmarks/", x, "", GateSet.nam), curr_list))
+
+lopt_commands = list(map (lambda x : lopt_pyzx("benchmarks/", x, "", GateSet.clifft, "0.01"), curr_list))
+pyzx_commands = list(map (lambda x : pyzx("benchmarks/", x, "", GateSet.clifft), curr_list))
 
 # lopt_commands =  list(map (lambda x : loptwtc_queso("benchmarks/", x, "", GateSet.nam), curr_list))
 # size_commands = size_exp("hhl_n7_from_python", [1, 2, 4, 8, 16, 32, 64])
 
 commands = lopt_commands
 sizes = [2, 5, 10, 20, 80, 160, 320, 640, 1280, 2560, 5120]
-commands = size_exp ("hhl_n9_from_python", sizes)
+# commands = size_exp ("nwq_square_root_n42", sizes)
 
 print(commands[0])
 print("num commands = ", len(commands))

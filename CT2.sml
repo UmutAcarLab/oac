@@ -50,6 +50,10 @@ struct
       | U1(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
       | U2(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
       | U3(s, x) => s ^ " q[" ^ (Qubit.str x) ^ "]"
+    fun gate_cost g =
+      case g of
+        RZ _ => 1
+      | _ => 0
   end
 
   datatype gate =
@@ -176,6 +180,7 @@ struct
     | TD _ => 1
     | CCZ _ => 7
     | CCX _ => 7
+    | UNINT t => Unint.gate_cost t
     | _ => 0
 
   fun gate_arity g =

@@ -11,29 +11,50 @@ import numpy as np
 from numpy.polynomial.polynomial import polyfit
 from family import *
 from scipy.stats import gmean
-
+import statistics
 from matplotlib.ticker import MultipleLocator
 
 class GateSet (Enum):
   nam = ""
   clifft = ".clifft"
+  ibm = ".ibm"
 
 class Tool (Enum):
   quartz = 1
   lopt = 2
   queso = 3
+  voqc = 4
+  lopt_quartz = 5
+  lopt_queso = 6
+  lopt_voqc = 7
+  pyzx = 8
+  lopt_pyzx = 9
 
-  def extension ():
-    # return "." + "0.01" + "."
-    return ""
+  def extension (self):
+    if self == Tool.lopt_quartz:
+      return ".lopt."+ "greedy" + "."
+    elif self == Tool.lopt_queso:
+      return ".lopt."+ "queso" + "."
+    elif self == Tool.lopt_voqc:
+      # return ".lopt."+"voqc"+"."
+      return ".lopt.convergence.voqc."
+    elif self == Tool.lopt_pyzx:
+      return ".lopt." + "pyzx" + "."
+    else:
+      return ""
   def config() :
-    return ".queso."
+    return ""
+    # return ".005.lopt.queso."
 
   def name (t):
     if t == Tool.quartz:
       return "quartz"
     elif t == Tool.queso:
       return "queso"
+    elif t == Tool.voqc:
+      return "voqc"
+    elif t == Tool.pyzx:
+      return "pyzx"
     else:
       return "lopt.0.01"
 
@@ -76,12 +97,68 @@ def read_file(f):
   with open (f) as file:
     return file.read()
 
+# def read_queso_log (f):
+#   d = read_file (f)
+#   print(f)
+#   try:
+#     rows = d.split("\n")
+#     data_points = rows[0].split(";")
+#     data_points.pop()
+#     time_values = []
+#     circuit_size_values = []
+#     def parse_point (p):
+#       values = p.strip("()").split(",")
+#       return (float(values[0]), int(float(values[1])))
+#     for point in data_points:
+#       (szv, tv) = parse_point(point)
+#       time_values.append(tv)
+#       circuit_size_values.append(szv)
+#     gt = time_values[-1]
+#     # gt = parse_point(rows[1].split(";")[0])[0]
+#     gv = circuit_size_values[-1]
+#     # gv = parse_point(rows[1].split(";")[0])[1]
+#     # print("queso file", f)
+#     # print("time = ", time_values[-1])
+#     # print("size = ", circuit_size_values[-1])
+#     return (time_values, circuit_size_values, gt, gv)
+#   except:
+#     return (["Unknown Error"], ["Unknown Error"], "Unknown Error", "Unknown Error")
+
 def read_queso_log (f):
   d = read_file (f)
-  print(d)
+  print(f)
+  try:
+    lines = d.split('\n')
+    lines.reverse()
+    for line in lines:
+      if "(" in line:
+        datapoints= line.split(";")
+        datapoints.reverse()
+        for datapoint in datapoints:
+          if ")" in datapoint:
+            datapoint= datapoint.strip("()")
+            gt= float(datapoint.split(",")[0])
+            gv= int(float(datapoint.split(",")[1]))
+            return ([0],[0],gv,gt)
+    return (["Unknown Error"], ["Unknown Error"], "Unknown Error", "Unknown Error")
+  except:
+    return (["Unknown Error"], ["Unknown Error"], "Unknown Error", "Unknown Error")
+
+def read_pyzx_log (f):
+  d = read_file (f)
   rows = d.split("\n")
-  print(d)
+  try:
+    total_time = rows[1].split(' ')[-1]
+    tcount = rows[0].split(' ')[-1]
+    return ([0],[rows[0].split(' ')[-2]],total_time, tcount)
+  except:
+    return (["Unknown Error"], ["Unknown Error"], "Unknown Error", "Unknown Error")
+
+def read_voqc_log (f):
+  d = read_file (f)
+  rows = d.split("\n")
   data_points = rows[0].split(";")
+  # print(data_points)
   data_points.pop()
   time_values = []
   circuit_size_values = []
@@ -89,40 +166,74 @@ def read_queso_log (f):
     values = p.strip("()").split(",")
     return (float(values[0]), int(float(values[1])))
   for point in data_points:
-    (tv, szv) = parse_point(point)
+    (szv, tv) = parse_point(point)
     time_values.append(tv)
     circuit_size_values.append(szv)
   gt = None
   # gt = parse_point(rows[1].split(";")[0])[0]
   gv = None
+  pattern_v = r"After optimization, the circuit uses (\d+) gates"
+  # pattern_t = r"Voqc total takes (\d+(\.\d+)?) seconds"
+  pattern_t = r"Optimization took (\d+(\.\d+)?) seconds"
+
+  for row in rows:
+    # print(row)
+    match = re.search(pattern_t, row)
+    if match:
+      gt = match.group(1)
+    match = re.search(pattern_v, row)
+    if match:
+      gv = int(match.group(1))
+
   # gv = parse_point(rows[1].split(";")[0])[1]
-  return (circuit_size_values, time_values, gt, gv)
+  # print("queso file", f)
+  # print("time = ", time_values[-1])
+  # print("size = ", circuit_size_values[-1])
+  return (time_values, circuit_size_values, gt, gv)
+
+# def read_quartz_log (f):
+#   d = read_file (f)
+#   lines = d.split('\n')
+#   greedy_points = lines[2].split(";")
+#   # print(greedy_points)
+#   search_points = lines[-2].split(";")
+#   greedy_points.pop()
+#   search_points.pop()
+#   time_values = []
+#   circuit_size_values = []
+#   for point in greedy_points:
+#     values = point.strip("()").split(",")
+#     tv = float(values[0])
+#     time_values.append(tv)
+#     circuit_size_values.append(int(float(values[1])))
+#   # if (len(time_values) <= 0):
+#     # print("no times in ", f)
+#     # return ([0], [0], 0)
+#   (gt, gv) = (time_values[-1], circuit_size_values[-1])
+#   for point in search_points:
+#     values = point.strip("()").split(",")
+#     tv = float(values[0])
+#     time_values.append(tv + gt)
+#     circuit_size_values.append(int(float(values[1])))
+#   return (time_values, circuit_size_values, gt, gv)
+
 
 def read_quartz_log (f):
   d = read_file (f)
+  print(f)
   lines = d.split('\n')
-  greedy_points = lines[2].split(";")
-  # print(greedy_points)
-  search_points = lines[-3].split(";")
-  greedy_points.pop()
-  search_points.pop()
-  time_values = []
-  circuit_size_values = []
-  for point in greedy_points:
-    values = point.strip("()").split(",")
-    tv = float(values[0])
-    time_values.append(tv)
-    circuit_size_values.append(int(float(values[1])))
-  # if (len(time_values) <= 0):
-    # print("no times in ", f)
-    # return ([0], [0], 0)
-  (gt, gv) = (time_values[-1], circuit_size_values[-1])
-  for point in search_points:
-    values = point.strip("()").split(",")
-    tv = float(values[0])
-    time_values.append(tv + gt)
-    circuit_size_values.append(int(float(values[1])))
-  return (time_values, circuit_size_values, gt, gv)
+  lines.reverse()
+  for line in lines:
+    if "(" in line:
+      datapoints= line.split(";")
+      datapoints.reverse()
+      for datapoint in datapoints:
+        if ")" in datapoint:
+          datapoint= datapoint.strip("()")
+          gt= float(datapoint.split(",")[0])
+          gv= int(float(datapoint.split(",")[1]))
+          return ([0],[0],gt,gv)
+  return (["Unknown Error"], ["Unknown Error"], "Unknown Error", "Unknown Error")
 
 def read_local_log (f):
   d = read_file(f)
@@ -135,14 +246,17 @@ def read_local_log (f):
   time_values = []
   circuit_size_values = []
   def parse_point (p):
+    p = p.strip()
     values = p.strip("()").split(",")
-    return (float(values[0]), int(float(values[1])))
+    return (float(values[0].strip()), int(float(values[1].strip())))
   for point in data_points:
     (tv, szv) = parse_point(point)
     time_values.append(tv)
     circuit_size_values.append(szv)
   gt = parse_point(rows[1].split(";")[0])[0]
   gv = parse_point(rows[1].split(";")[0])[1]
+  # print("local file", f)
+  # print(gt, gv)
   return (time_values, circuit_size_values, gt, gv)
 
 # def read_queso_log (f):
@@ -164,27 +278,53 @@ def log_from_bench(bn, tool, gate_set):
   print("bench = ", bn)
 
   path = BASE_DIR + bn + "/" + bn + gate_set.value
+
   if tool == Tool.quartz:
-    return read_quartz_log (path +  ".quartz.combined.log")
+    try :
+      open(path + ".quartz.12.combined.log")
+    except:
+      return (["File Not Exist"], ["File Not Exist"], "File Not Exist", "File Not Exist")
+    return read_quartz_log (path +  ".quartz.12.combined.log")
   elif tool == Tool.queso:
-    return read_queso_log(path + ".queso.combined.log")
+    try :
+      open(path + ".queso.12.combined.log")
+    except:
+      return (["File Not Exist"], ["File Not Exist"], "File Not Exist", "File Not Exist")
+    return read_queso_log(path + ".queso.12.combined.log")
+  elif tool == Tool.voqc:
+    try :
+      open(path + ".voqc.combined.log")
+    except:
+      return (["File Not Exist"], ["File Not Exist"], "File Not Exist", "File Not Exist")
+    return read_voqc_log (path + ".voqc.combined.log")
+  elif tool == Tool.pyzx:
+    try :
+      open(path + ".pyzx.combined.log")
+    except:
+      return (["File Not Exist"], ["File Not Exist"], "File Not Exist", "File Not Exist")
+    return read_pyzx_log (path + ".pyzx.combined.log")
   else:
-    return read_local_log(path +  ".lopt%s%slog"%(Tool.extension(), Tool.config()))
+    try:
+      open(path +  "%s%slog"%(Tool.extension(tool), Tool.config()))
+    except:
+      return (["File Not Exist"], ["File Not Exist"], "File Not Exist", "File Not Exist")
+    return read_local_log(path +  "%s%slog"%(Tool.extension(tool), Tool.config()))
 
 
 def split (times, sizes, time):
   logs = list(zip(times, sizes))
-  print(times, sizes, time)
+  # print(times, sizes, time)
   # print(list(logs))
   before = [t for t in logs if t[0] <= time]
   after = [t for t in logs if t[0] >= time]
+  # if after:
+    # before.append(after[0])
   ub = list(zip(*before))
   ua = list(zip(*after))
   if ua == []:
     ua = [[], []]
-  elif ub == []:
+  if ub == []:
     ub = [[], []]
-  print("before", before)
   return (list(ub[0]), list(ub[1]), list(ua[0]), list(ua[1]))
 
 def plot_bench (bn, gate_set):
@@ -669,7 +809,8 @@ def create_queso_tables(curr_list, names, write):
 def create_tables (curr_list, names, write, gate_set):
   quartz_logs = list (map(lambda x: log_from_bench(x, Tool.queso, gate_set), curr_list))
   lopt_logs = list (map(lambda x: log_from_bench(x, Tool.lopt, gate_set), curr_list))
-  headers = ["Name", "Input Size", "Q", "S", "Q/S", "Q", "S", "S/Q",  "Time (s)"]
+  t = "Q^*"
+  headers = ["Name", "Input Size", t, "S", t+"/S", t, "S", "S/"+t,  "Time (s)"]
   tab = []
   # LATEX IT
   qpcts = []
@@ -683,7 +824,8 @@ def create_tables (curr_list, names, write, gate_set):
       qsizes = qsizes[1:]
     elif (bn.startswith('hhl_n13')):
       qsizes = [l0]
-    (q0, qf) = (qsizes[0], qsizes[-1])
+    (q0, qf) = (int(qsizes[0]), int(qsizes[-1]))
+    print("qfinal = ", qf)
     if q0 < 1000:
       continue
     elif (q0 == l0 or l0 == 0):
@@ -696,8 +838,8 @@ def create_tables (curr_list, names, write, gate_set):
         lpct = (round(float(lf-q0)/q0, 2) * 100)
       if q0 != qf:
         qpct = (round(float(qf-q0)/q0, 2) * 100)
-      qrate = abs(round(float(qf - q0)/gtl, 2))
-      lrate = abs(round(float(lf - q0)/gtl, 2))
+      qrate = 1 + abs(round(float(qf - q0)/gtl, 2))
+      lrate = 1 + abs(round(float(lf - q0)/gtl, 2))
       if qrate == 0:
         rat = 1.0
       else:
@@ -753,6 +895,111 @@ def create_tables (curr_list, names, write, gate_set):
     print("filename", "prelim" + ext)
 
 
+def create_family_rows (fam, toolComp, gate_set):
+  curr_list = Family.ls (fam)
+  qlist = Family.lsqubits(fam)
+  qlogs =  list (map(lambda x: log_from_bench(x, toolComp, gate_set), curr_list))
+  llogs =  list (map (lambda x: log_from_bench(x, Tool.lopt, gate_set), curr_list))
+  tab = []
+  # LATEX IT
+  qpcts = []
+  lpcts = []
+  ratsizes = []
+  ratios = []
+  fam_name = "\multirow{%d}{*}{%s}"%(len(curr_list), Family.name(fam))
+  for (bn, q, l) in zip(qlist, qlogs, llogs):
+    (l0, lf, gtl, _) = cols_from_log(l)
+    if (gtl > 36000):
+      (ltimes, lsizes, ltimes2, _) = split(l[0], l[1], 36000)
+      (l0, lf, gtl) = (lsizes[0], int(lsizes[-1]), ltimes[-1])
+    (qtimes, qsizes, qtimes2, _) = split(q[0], q[1], gtl)
+    (q0, qf) = (int(qsizes[0]), int(qsizes[-1]))
+    print("qfinal = ", qf)
+    print("initial sizes = ", q0, l0)
+    if q0 < 1000:
+      continue
+    elif (q0 == l0 or l0 == 0 or True):
+      if len(qtimes2) == 0 and not (gtl >= 10000 and qtimes[-1] >= 10000):
+        print("quartz hasn't run for this time", gtl, qtimes[-1])
+        print(Colors.RED, bn, Colors.RESET)
+      qpct = 0
+      lpct = 0
+      if q0 != lf:
+        lpct = (round(float(q0-lf)/q0, 2) * 100)
+      if q0 != qf:
+        qpct = (round(float(q0-qf)/q0, 2) * 100)
+      rat = round(float(1 + q0 - lf)/float(1 + q0 - qf), 2)
+      # if qrate == 0:
+      #   rat = 1.0
+      # else:
+      #   rat = round((lrate)/ (qrate), 2)
+      # pctdiff = round((float(lf)/float(qf)) - 1.0, 2) * 100
+      qpcts.append(qpct)
+      lpcts.append(lpct)
+      ratsize = round(float(qf)/float(lf), 2)
+      ratios.append(rat)
+      ratsizes.append(ratsize)
+      q0lf = str(q0 -lf)
+      if lf < qf:
+        q0lf = "\\textbf{" + str(q0 - lf) + "}"
+      tab.append([fam_name, bn, q0, str(q0 - qf) + " (%d\%%)" %(qpct), str(q0lf) + " (%d\%%)" %(lpct), str(rat) + "x", int(gtl)])
+      fam_name = ""
+    else:
+      print(Colors.RED, bn, q0, l0, Colors.RESET)
+  return tab
+
+def create_new_table (fam_list, write, gate_set):
+  # quartz_logs = list (map(lambda x: log_from_bench(x, Tool.quartz, gate_set), curr_list))
+  # lopt_logs = list (map(lambda x: log_from_bench(x, Tool.lopt, gate_set), curr_list))
+  # t = "Q^*"
+  # headers = ["Name", "Input Size", t, "S", t+"/S", t, "S", "S/"+t,  "Time (s)"]
+  def flatten(l):
+    return [x for sublist in l for x in sublist]
+  print("loop begine")
+  tab = flatten(list(map (lambda x: create_family_rows(x, Tool.quartz, gate_set), fam_list)))
+
+  tab_len = len(tab)
+  if (len(tab) > 30 and write and False):
+    h = int(tab_len/2)
+    tab1 = tab[0:h]
+    tab2 = tab[h:]
+    ltab1 = tabulate(tab1, headers=headers, tablefmt="latex")
+    ltab2 = tabulate(tab2, headers=headers, tablefmt="latex")
+    ext = gate_set.value + ".%s.new.tex"%(Tool.extension())
+    with open("prelim1" + ext, "w") as f:
+      f.write(ltab1)
+    with open("prelim2" + ext, "w") as f:
+      f.write(ltab2)
+    print("filenames", "prelim1" + ext, "prelim2" + ext)
+  else:
+    custom_header = (
+        " &  &  & \\multicolumn{3}{c}{Number of optimizations} &  \\\\ \\cmidrule(lr){4-6} \n"
+        "  Family & Qubits & Input Size & Q & S & S/Q & Time (s) \\\\ \n"
+    )
+
+    def find_line_position(input_string):
+      first_newline_index = input_string.find('\n')
+      return first_newline_index
+    def mean(x):
+      x = [abs(y)for y in x]
+      return str(round(gmean(x), 2))
+    ltab = tabulate(tab, tablefmt="latex_raw")
+    pos = find_line_position(ltab)
+    # insert header manually
+    ltab = "\\begin{tabular}{ccccccc}" + "\n" + custom_header + ltab[pos:]
+    ltab = ltab.replace('\hline', '')
+    ltab = ltab.replace(r"\multirow", r"\midrule\multirow")
+    # mean_row = "\\textbf{geomean} & & & & %s & \n"%(mean(ratios))
+    last = "\end{tabular}"
+    ltab = ltab.replace(last, "\midrule\n" + last)
+    ext = gate_set.value + ".%s.tex"%(Tool.extension())
+    print(ext)
+    with open("prelim" + ext, "w") as f:
+      f.write(ltab)
+    print("filename", "prelim" + ext)
+
+
+
 def create_swap_count(c, gate_set):
   bn = "hwb6"
   optl = qisk.get_swap_count(get_out_file(bn, Tool.lopt, gate_set), nam_basis)
@@ -763,17 +1010,17 @@ def create_swap_count(c, gate_set):
 def filter_fm (p, c):
   return [s for s in c if s.startswith(p) and s.endswith("from_python")]
 
-bench_list = sorted(listdir('benchmarks'))
-bench_list.remove('make')
-bench_list.remove('original')
-# bench_list.remove('vqe_n24')
-# bench_list.remove('grover_n11_from_python')
-# bench_list.remove('grover_n7_from_python')
-# bench_list.remove('barenco_tof_10')
-bench_list.remove('gf2^128_mult')
-bench_list.remove('gf2^163_mult')
-bench_list.remove('gf2^131_mult')
-bench_list.remove('gf2^64_mult')
+# bench_list = sorted(listdir('benchmarks'))
+# bench_list.remove('make')
+# bench_list.remove('original')
+# # bench_list.remove('vqe_n24')
+# # bench_list.remove('grover_n11_from_python')
+# # bench_list.remove('grover_n7_from_python')
+# # bench_list.remove('barenco_tof_10')
+# bench_list.remove('gf2^128_mult')
+# bench_list.remove('gf2^163_mult')
+# bench_list.remove('gf2^131_mult')
+# bench_list.remove('gf2^64_mult')
 def filter_bn (b, bn):
 	filtered = [s for s in b if s.startswith(bn)]
 	return filtered
@@ -782,21 +1029,39 @@ def filter_bn (b, bn):
 curr_list = []
 curr_list += ["ham15-med", "ham15-high"]
 name_list = curr_list.copy()
+# [Family.hhl, Family.gf, Family.grover, Family.qftqis, Family.shor, Family.vqe]
 for fam in [Family.hhl, Family.gf, Family.grover, Family.qftqis, Family.shor, Family.vqe]:
   curr_list += Family.ls (fam)
   name_list += Family.lslabels(fam)
+fam_list = [Family.ham, Family.hhl, Family.gf, Family.grover, Family.qftqis, Family.shor, Family.vqe]
+# fam_list = [Family.ham]
+# run shor
+# fam_list = [Family.ham, Family.hhl, Family.gf, Family.grover, Family.qftqis, Family.vqe]
+# fam_list = [Family.grover]
   # if fam == Family.hhl:
   #   curr_list += ["hwb6"]
   #   name_list += ["hwb6"]
   # elif fam == Family.grover:
   #   curr_list += ["mod5_4"]
   #   name_list += ["mod5_4"]
+# curr_list+=["shor_7_mod_15_n10_from_python"]
+# name_list+=["qpe_n10"]
+# print(curr_list)
+# curr_list = ["qft_n48_from_qiskit", "qft_n64_from_qiskit", "qft_n80_from_qiskit"]
+# curr_list += ["hhl_n7_from_python"]
 
-print(curr_list)
-curr_list = ["qft_n48_from_qiskit", "qft_n64_from_qiskit", "qft_n80_from_qiskit"]
-curr_list += ["hhl_n7_from_python"]
 
-print(create_tables(curr_list, curr_list, True, GateSet.nam))
+
+# curr_list = ["qft_n48_from_qiskit", "qft_n64_from_qiskit", "qft_n80_from_qiskit"]
+# curr_list += ["hhl_n7_from_python"]
+# curr_list += ["ham15-high"]
+
+# curr_list += ["ham15-med", "vqe_n12_from_python", "vqe_n20_from_python", "hhl_n9_from_python"]
+# curr_list += ['gf2^16_mult', 'gf2^32_mult']
+# curr_list += ["grover_n7_from_python", "grover_n9_from_python", "vqe_n16_from_python", "qft_n96_from_qiskit", "grover_n11_from_python"]
+# print(log_from_bench("hhl_n7_from_python", Tool.queso, GateSet.nam))
+
+# print(create_new_table(fam_list, True, GateSet.ibm))
 # curr_list.remove("hhl_n11_from_python")
 # # curr_list.remove("vqe_n24_from_python")
 # name_list.remove("hhl\\_n11")
@@ -830,9 +1095,10 @@ def retrieve_missing(fam_list):
         missing.append(x)
   return missing
 
-lin_families = [Family.lin_grover, Family.lin_hhl, Family.lin_vqe, Family.lin_shor, Family.lin_qftqis]
-# plot_times(lin_families, GateSet.nam)
-print(log_from_bench("hhl_n7_from_python", Tool.queso, GateSet.nam))
+# lin_families = [Family.lin_grover, Family.lin_hhl, Family.lin_vqe, Family.lin_shor, Family.lin_qftqis]
+# lin_families = [Family.lin_hhl]
+# # plot_times(lin_families, GateSet.nam)
+# print(log_from_bench("grover_n9_from_python", Tool.queso, GateSet.nam))
 
 # #
 
@@ -874,3 +1140,197 @@ print(log_from_bench("hhl_n7_from_python", Tool.queso, GateSet.nam))
 
 # curr_list = ['qaoa_n10_p4' ,'qaoa_n12_p4' ,'qaoa_n14_p4' ,'qaoa_n16_p4' ,'qaoa_n20_p4' ,'qaoa_n22_p4' ,'qaoa_n8_p4' ,'qaoa_n24_p4' ,'qaoa_n26_p4' ,'qaoa_n28_p4' ,'qaoa_n30_p4' ,'qaoa_n4_p4' ,'qaoa_n18_p4' ,'qaoa_n6_p4']
 # print(plot_size(curr_list, GateSet.clifft, "qaoa"))
+# print(fam_list[0].ls())
+# nwq_names=["nwq_binary_welded_tree_n17", "nwq_binary_welded_tree_n21", "nwq_boolean_satisfaction_n28", "nwq_boolean_satisfaction_n30", "nwq_boolean_satisfaction_n32", "nwq_boolean_satisfaction_n34",  "nwq_multiplier_n200", "nwq_multiplier_n300", "nwq_multiplier_n400",  "nwq_square_root_n42", "nwq_square_root_n54", "nwq_square_root_n60",  "nwq_statevector_n5",  "nwq_statevector_n6", "nwq_statevector_n7", "nwq_statevector_n8", "nwq_vqc_n120", "nwq_vqc_n15", "nwq_vqc_n240", "nwq_vqc_n30", "nwq_vqc_n60"]
+nwq_names_bwt=["nwq_binary_welded_tree_n17", "nwq_binary_welded_tree_n21","nwq_binary_welded_tree_n25","nwq_binary_welded_tree_n29"]
+nwq_names_boolsat=["nwq_boolean_satisfaction_n28", "nwq_boolean_satisfaction_n30", "nwq_boolean_satisfaction_n32", "nwq_boolean_satisfaction_n34"]
+nwq_names_sqrt=["nwq_square_root_n42", "nwq_square_root_n48", "nwq_square_root_n54", "nwq_square_root_n60"]
+nwq_names_statevec=["nwq_statevector_n5",  "nwq_statevector_n6", "nwq_statevector_n7", "nwq_statevector_n8"]
+
+configs=[(Tool.quartz, GateSet.nam),(Tool.queso, GateSet.nam), (Tool.voqc, GateSet.nam), (Tool.lopt_voqc, GateSet.nam)]
+# configs=[(Tool.queso, GateSet.nam)]
+# configs=[(Tool.quartz, GateSet.ibm), (Tool.queso, GateSet.ibm),(Tool.lopt_quartz, GateSet.ibm)]
+fam_list = [ Family.grover,Family.hhl,Family.shor, Family.vqe]
+
+def write_time_table (fam_rows):
+  custom_header = (
+    " &  &  & \\multicolumn{3}{c}{Number of optimizations} &  \\\\ \\cmidrule(lr){4-6} \n"
+    "  Family & Qubits & Input Size & Q & S & S/Q & Time (s) \\\\ \n"
+  )
+
+  def find_line_position(input_string):
+    first_newline_index = input_string.find('\n')
+    return first_newline_index
+  def mean(x):
+    x = [abs(y)for y in x]
+    return str(round(gmean(x), 2))
+  ltab = tabulate(tab, tablefmt="latex_raw")
+  pos = find_line_position(ltab)
+  # insert header manually
+  ltab = "\\begin{tabular}{ccccccc}" + "\n" + custom_header + ltab[pos:]
+  ltab = ltab.replace('\hline', '')
+  ltab = ltab.replace(r"\multirow", r"\midrule\multirow")
+  # mean_row = "\\textbf{geomean} & & & & %s & \n"%(mean(ratios))
+  last = "\end{tabular}"
+  ltab = ltab.replace(last, "\midrule\n" + last)
+  ext = gate_set.value + ".%s.tex"%(Tool.extension())
+  print(ext)
+  with open("prelim" + ext, "w") as f:
+    f.write(ltab)
+  print("filename", "prelim" + ext)
+
+
+
+def call_time_extract (bn):
+  call_times = []
+  filename = "benchmarks/%s/%s.voqc.trash.out"%(bn, bn)
+  with open(filename, 'r') as file:
+    for line in file:
+      match =  re.search(r"call time = (\d+\.\d+)", line)
+      if match:
+          # Extract the time and add it to the total
+          time = float(match.group(1))
+          call_times.append(time)
+
+  return statistics.mean(call_times)
+
+
+def num_calls (bn):
+  filename = "benchmarks/%s/%s.convergence.voqc.trash.out"%(bn, bn)
+  count = 0
+  with open(filename, 'r') as file:
+    for line in file:
+      match =  re.search(r"call time = (\d+\.\d+)", line)
+      if match:
+        count+=1
+
+  return count
+# fam_list = [Family.hhl]
+import csv
+
+
+def generate_call_time():
+  name_list=[]
+  name_list+=nwq_names_boolsat
+  name_list+=nwq_names_bwt
+  name_list+=fam_list[0].ls()
+  name_list+=fam_list[1].ls()
+  name_list+=fam_list[2].ls()
+  name_list+=nwq_names_sqrt
+  name_list+=nwq_names_statevec
+  name_list+=fam_list[3].ls()
+  call_time_list=[]
+  for name in name_list:
+    try:
+      call_time_list.append(num_calls(name))
+    except:
+      print("failed", name)
+  print("\n".join([str(x) for x in call_time_list]))
+
+def generate_table_pengyu ():
+  my_csv=[["-" for _ in range(17)] for _ in range(35)]
+  name_list=[]
+  name_list+=nwq_names_boolsat
+  name_list+=nwq_names_bwt
+  name_list+=fam_list[0].ls()
+  name_list+=fam_list[1].ls()
+  name_list+=fam_list[2].ls()
+  name_list+=nwq_names_sqrt
+  name_list+=nwq_names_statevec
+  name_list+=fam_list[3].ls()
+
+
+  for i,name in enumerate(name_list):
+    my_csv[i][0]=name
+    print(name)
+  for i,name in enumerate(name_list):
+    log=log_from_bench(name, configs[3][0], configs[3][1])
+    my_csv[i][1]=log[1][0]
+
+
+    for j,config in enumerate(configs):
+      offset=2*j+2
+      if j>3:
+        offset+=1
+      # log=log_from_bench(name, config[0], config[1])
+      # try:
+      log=log_from_bench(name, config[0], config[1])
+      print(name, log)
+        # try:
+      if log[2] is not None:
+        my_csv[i][offset]=log[2]
+      if log[3] is not None:
+        my_csv[i][offset+1]=log[3]
+      #   except:
+      #     pass
+      # except:
+      #   pass
+
+
+  with open('pengyu_result.csv', 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerows(my_csv)
+
+
+def generate_table_mingkuan():
+  curr_list = [
+    "mod5_4",
+    "adder_8",
+    "nwq_boolean_satisfaction_n28",
+    "nwq_boolean_satisfaction_n30",
+    "nwq_boolean_satisfaction_n32",
+    "nwq_boolean_satisfaction_n34",
+    "nwq_binary_welded_tree_n17",
+    "nwq_binary_welded_tree_n21",
+    "grover_n9_from_python",
+    "grover_n15_from_python",
+    "hhl_n7_from_python",
+    "hhl_n9_from_python",
+    "qft_n24_from_python",
+    "qft_n30_from_python",
+    "shor_7_mod_15_n12_from_python",
+    "shor_7_mod_15_n16_from_python",
+    "vqe_n8_from_python",
+    "vqe_n16_from_python",
+    "nwq_square_root_n42",
+    "nwq_square_root_n48",
+    "nwq_square_root_n54",
+    "nwq_square_root_n60",
+    "nwq_statevector_n4",
+    "nwq_statevector_n6"
+  ]
+  my_csv=[["-" for _ in range(17)] for _ in range(len(curr_list))]
+  for i,name in enumerate(curr_list):
+    my_csv[i][0]=name
+    print(name)
+  configs=[(Tool.lopt_pyzx, GateSet.clifft), (Tool.pyzx, GateSet.clifft)]
+  for i,name in enumerate(curr_list):
+    log=log_from_bench(name, configs[1][0], configs[1][1])
+    my_csv[i][1]=log[1][0] # t count
+
+
+    for j,config in enumerate(configs):
+      offset=2*j+2
+      # log=log_from_bench(name, config[0], config[1])
+      # try:
+      log=log_from_bench(name, config[0], config[1])
+      print(name, log)
+      # try:
+      if log[2] is not None:
+        my_csv[i][offset]=log[2]
+      if log[3] is not None:
+        my_csv[i][offset+1]=log[3]
+      #   except:
+      #     pass
+      # except:
+      #   pass
+
+
+  with open('mingkuan_result.csv', 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerows(my_csv)
+
+
+# generate_table_pengyu()
+# generate_call_time()
+generate_table_mingkuan()
