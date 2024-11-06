@@ -22,7 +22,7 @@ def pyzx(path, bench_name, cnot):
 			'runtool': '',
 			'greedyonly': ''
 	}
-	command = './bin/ct2.mlton.bin'
+	command = './bin/ct2.mlton.pyzx.bin'
 
 	for option, value in options.items():
 		if value:
@@ -60,7 +60,7 @@ def lopt_pyzx(path, bench_name, size, grain_per_qubit, cnot):
 			'nopp': '',
 			'greedyonly': ''
 	}
-	command = './bin/ct2.mlton.bin'
+	command = './bin/ct2.mlton.pyzx.bin'
 
 	for option, value in options.items():
 		if value:
@@ -87,7 +87,7 @@ def lopt_pyzx_size (path, bench_name, suffix, size):
 			'nopp': '',
 			'greedyonly': ''
 	}
-	command = './bin/ct2.mlton.bin'
+	command = './bin/ct2.mlton.pyzx.bin'
 
 	for option, value in options.items():
 		if value:
@@ -193,6 +193,27 @@ bench_files = [f for f in bench_files if (not('vqc' in f))]
 bench_files = list(set([f.split('.')[0] for f in bench_files]))
 bench_files = [f for f in bench_files]
 bench_files = sorted(bench_files)
+
+bench_files = [
+	'gf2^128_mult', 'gf2^32_mult', 'gf2^64_mult', 'grover_n11_from_python',
+	 'grover_n11_from_python_ts2', 'grover_n13_from_python',
+	 'grover_n13_from_python_ts2', 'grover_n15_from_python',
+	 'grover_n15_from_python_ts2', 'grover_n9', 'grover_n9_from_python',
+	 'grover_n9_from_python_ts2', 'hhl_n7_from_python', 'hhl_n9_from_python', 'hwb10',
+	 'hwb11', 'hwb12', 'hwb6', 'hwb8', 'nwq_binary_welded_tree_n17',
+	 'nwq_binary_welded_tree_n21', 'nwq_boolean_satisfaction_n24',
+	 'nwq_boolean_satisfaction_n28',
+	 'nwq_boolean_satisfaction_n32', 'nwq_multiplier_n100',
+	 'nwq_multiplier_n200', 'nwq_multiplier_n300',
+	 'nwq_square_root_n21', 'nwq_square_root_n30', 'nwq_square_root_n42',
+	 'nwq_square_root_n48', 'nwq_square_root_n60',
+	 'nwq_statevector_n4', 'nwq_statevector_n5', 'nwq_statevector_n6',
+	 'qft_n16_from_qiskit', 'qft_n32_from_qiskit', 'qft_n48_from_qiskit',
+	 'qft_n64_from_qiskit', 'qft_n80_from_qiskit', 'qft_n96_from_qiskit',
+	 'shor_7_mod_15_n10_from_python', 'shor_7_mod_15_n12_from_python',
+	 'shor_7_mod_15_n14_from_python', 'shor_7_mod_15_n16_from_python',
+	 'shor_7_mod_15_n18_from_python', 'shor_7_mod_15_n8_from_python'
+]
 print(bench_files)
 # bench_files = ["grover_n15_from_python"]
 # bench_files = ["qft_n96_from_qiskit"]
@@ -206,11 +227,11 @@ sizes = [2, 5, 15, 30, 60, 120, 240, 480, 960, 1920, 3840, 7680]
 # bench_files = ["hhl_n9_from_python", "shor_7_mod_15_n16_from_python"]
 # bench_files = ["hwb10"]
 pyzx_commands = list(map(lambda x: pyzx(path, x, False), bench_files))
-lopt_commands = list(map(lambda x: lopt_pyzx(path, x, 100, 400, False), bench_files))
+lopt_commands = list(map(lambda x: lopt_pyzx(path, x, 200, 1000, False), bench_files))
 voqc_commands = list(map (lambda x : voqc(path, x, ""), bench_files))
 lopt_voqc_commands = list(map (lambda x : lopt_voqc(path, x, ""), bench_files))
 size_commands = size_exp("grover_n15_from_python", sizes)
-commands = pyzx_commands
+commands = lopt_commands
 # commands = commands[0]
 print(commands[0])
 print("num commands", len(commands))

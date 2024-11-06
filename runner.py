@@ -630,7 +630,7 @@ pyzx_commands = list(map (lambda x : pyzx("benchmarks/", x, "", GateSet.clifft),
 # lopt_commands =  list(map (lambda x : loptwtc_queso("benchmarks/", x, "", GateSet.nam), curr_list))
 # size_commands = size_exp("hhl_n7_from_python", [1, 2, 4, 8, 16, 32, 64])
 
-commands = lopt_commands
+commands = pyzx_commands
 sizes = [2, 5, 10, 20, 80, 160, 320, 640, 1280, 2560, 5120]
 # commands = size_exp ("nwq_square_root_n42", sizes)
 

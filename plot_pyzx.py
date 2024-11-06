@@ -5,6 +5,7 @@ from scipy.stats import gmean
 path = "feyn_benchmarks/"
 import csv
 from enum import Enum
+import natsort
 import re
 import statistics
 
@@ -405,8 +406,8 @@ def log_from_bench(bn, tool):
     return read_log (path + ".lopt.pyzx.100.400.converge.log")
   elif tool == Tool.lopt_voqc:
     return read_log (path + ".lopt.voqc.log")
-  else:
-    raise FileExistsError
+  else: # lopt_pyzx
+    return read_log (path + f".lopt.pyzx.{tool[0]}.{tool[1]}.converge.log")
 
 
 def generate_table_pengyu (configs, name_list):
@@ -489,9 +490,9 @@ name_list+=nwq_names
 
 # print(name_list)
 # configs = [Tool.voqc, Tool.feynman,  Tool.lopt_voqc, Tool.lopt_feynman]
-configs = [ Tool.pyzx,  Tool.lopt_pyzx]
+configs = [ Tool.pyzx, (100, 400), (100, 1000), (200, 1000)]
 
-generate_table_mingkuan(configs, ['gf2^128_mult', 'gf2^32_mult', 'gf2^64_mult', 'grover_n11_from_python',
+generate_table_mingkuan(configs, natsort.natsorted(['gf2^128_mult', 'gf2^32_mult', 'gf2^64_mult', 'grover_n11_from_python',
                                   'grover_n11_from_python_ts', 'grover_n11_from_python_ts2', 'grover_n13_from_python',
                                   'grover_n13_from_python_ts2', 'grover_n15_from_python', 'grover_n15_from_python_ts',
                                   'grover_n15_from_python_ts2', 'grover_n9', 'grover_n9_from_python',
@@ -508,7 +509,7 @@ generate_table_mingkuan(configs, ['gf2^128_mult', 'gf2^32_mult', 'gf2^64_mult', 
                                   'qft_n64_from_qiskit', 'qft_n80_from_qiskit', 'qft_n96_from_qiskit',
                                   'shor_7_mod_15_n10_from_python', 'shor_7_mod_15_n12_from_python',
                                   'shor_7_mod_15_n14_from_python', 'shor_7_mod_15_n16_from_python',
-                                  'shor_7_mod_15_n18_from_python', 'shor_7_mod_15_n8_from_python'])
+                                  'shor_7_mod_15_n18_from_python', 'shor_7_mod_15_n8_from_python']))
 # generate_table_pengyu (configs, name_list)
 
 # for fam in [Family.hwb, Family.gf, Family.grover, Family.hhl, Family.qftqis, Family.shor]:

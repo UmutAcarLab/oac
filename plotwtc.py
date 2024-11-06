@@ -39,7 +39,7 @@ class Tool (Enum):
       # return ".lopt."+"voqc"+"."
       return ".lopt.convergence.voqc."
     elif self == Tool.lopt_pyzx:
-      return ".lopt." + "pyzx" + "."
+      return ".lopt.convergence.pyzx."
     else:
       return ""
   def config() :
@@ -236,6 +236,7 @@ def read_quartz_log (f):
   return (["Unknown Error"], ["Unknown Error"], "Unknown Error", "Unknown Error")
 
 def read_local_log (f):
+  print('local', f)
   d = read_file(f)
   if d == "":
     return ([], [])
@@ -1276,12 +1277,9 @@ def generate_table_mingkuan():
   curr_list = [
     "mod5_4",
     "adder_8",
+    "nwq_boolean_satisfaction_n24",
     "nwq_boolean_satisfaction_n28",
-    "nwq_boolean_satisfaction_n30",
-    "nwq_boolean_satisfaction_n32",
-    "nwq_boolean_satisfaction_n34",
     "nwq_binary_welded_tree_n17",
-    "nwq_binary_welded_tree_n21",
     "grover_n9_from_python",
     "grover_n15_from_python",
     "hhl_n7_from_python",
@@ -1289,13 +1287,9 @@ def generate_table_mingkuan():
     "qft_n24_from_python",
     "qft_n30_from_python",
     "shor_7_mod_15_n12_from_python",
-    "shor_7_mod_15_n16_from_python",
     "vqe_n8_from_python",
     "vqe_n16_from_python",
     "nwq_square_root_n42",
-    "nwq_square_root_n48",
-    "nwq_square_root_n54",
-    "nwq_square_root_n60",
     "nwq_statevector_n4",
     "nwq_statevector_n6"
   ]
